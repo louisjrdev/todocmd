@@ -17,8 +17,6 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--mac'
-          - platform: 'ubuntu-20.04'
-            args: '--linux'
           - platform: 'windows-latest'
             args: '--win'
 
@@ -35,12 +33,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-20.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3-dev libatk-bridge2.0-dev libdrm2 libxss1 libgconf-2-4 libxrandr2 libasound2-dev libgtk-3-dev
 
       - name: Generate icons
         run: node scripts/build-icons.js
@@ -106,26 +98,20 @@ jobs:
             - **TodoCmd Setup ${{ steps.version.outputs.VERSION }}.exe** - Installer (recommended)
             - **TodoCmd ${{ steps.version.outputs.VERSION }}.exe** - Portable version
             
-            **Linux**
-            - **TodoCmd-${{ steps.version.outputs.VERSION }}.AppImage** - Universal (recommended)
-            - **TodoCmd_${{ steps.version.outputs.VERSION }}_amd64.deb** - Debian/Ubuntu
-            - **TodoCmd-${{ steps.version.outputs.VERSION }}.x86_64.rpm** - RedHat/Fedora
-            
             ### Installation
             
             1. Download the appropriate file for your platform
             2. **macOS**: Open the DMG and drag to Applications
             3. **Windows**: Run the installer or extract the portable version
-            4. **Linux**: Make the AppImage executable or install the package
-            5. Launch with `Alt+T` from anywhere!
+            4. Launch with `Alt+T` from anywhere!
             
             ### What's New
-            - Initial release of TodoCmd
-            - Command palette interface with `Alt+T` global shortcut
-            - Beautiful glassmorphism UI with smooth animations
-            - Daily todo management with smart rollover
-            - System tray integration
-            - Cross-platform support
+            - Fixed Windows build icon size requirements (now 256x256)
+            - Improved icon generation with proper todo checklist design
+            - Enhanced UI with auto-scroll and better navigation
+            - Added DevTools shortcuts for debugging
+            - System tray integration with quick access menu
+            - Cross-platform support for macOS and Windows
           draft: false
           prerelease: false
         env:

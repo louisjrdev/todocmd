@@ -14,8 +14,7 @@
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux",
-    "dist:all": "npm run build && electron-builder --mac --win --linux",
+    "dist:all": "npm run build && electron-builder --mac --win",
     "release": "npm run dist:all"
   },
   "keywords": [
@@ -110,30 +109,6 @@
           ]
         }
       ]
-    },
-    "linux": {
-      "icon": "assets/icon.png",
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "rpm",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "category": "Office"
     },
     "nsis": {
       "oneClick": false,

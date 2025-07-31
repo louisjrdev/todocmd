@@ -143,8 +143,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-Built with ❤️ using Electron and React
-
 ## Installation & Setup
 
 1. **Clone and install dependencies:**
@@ -215,7 +213,7 @@ You can customize the appearance by modifying `src/renderer/App.css`. The app au
 
 ## Troubleshooting
 
-- **Global shortcut not working**: Make sure no other application is using `Alt+Space`
+- **Global shortcut not working**: Make sure no other application is using `Alt+t`
 - **App won't start**: Ensure all dependencies are installed with `npm install`
 - **Data not persisting**: Check file permissions in your user data directory
 
