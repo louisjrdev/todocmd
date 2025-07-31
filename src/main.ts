@@ -1,0 +1,263 @@
+const { app, BrowserWindow, globalShortcut, ipcMain, screen: electronScreen, Tray, Menu, nativeImage } = require('electron');
+const { join } = require('path');
+const Store = require('electron-store');
+
+interface Todo {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+interface TodoStore {
+  todos: Record<string, Todo[]>; // date string -> todos
+  lastAccessed: string;
+}
+
+const store = new Store({
+  defaults: {
+    todos: {},
+    lastAccessed: new Date().toISOString().split('T')[0]
+  }
+});
+
+let mainWindow: any = null;
+let tray: any = null;
+let isVisible = false;
+
+function createWindow(): void {
+  const { width, height } = electronScreen.getPrimaryDisplay().workAreaSize;
+  
+  mainWindow = new BrowserWindow({
+    width: 600,
+    height: 400,
+    x: Math.round((width - 600) / 2),
+    y: Math.round((height - 400) / 2),
+    show: false,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    transparent: true,
+    minimizable: false,
+    maximizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: join(__dirname, 'preload.js'),
+    },
+  });
+
+  const isDev = process.env.NODE_ENV === 'development';
+  
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(join(__dirname, 'index.html'));
+  }
+
+  mainWindow.on('blur', () => {
+    if (isVisible) {
+      hideWindow();
+    }
+  });
+
+  mainWindow.on('close', (event: any) => {
+    if (!app.isQuiting) {
+      event.preventDefault();
+      hideWindow();
+      return false;
+    }
+  });
+}
+
+function showWindow(): void {
+  if (mainWindow) {
+    isVisible = true;
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('window-shown');
+  }
+}
+
+function hideWindow(): void {
+  if (mainWindow) {
+    isVisible = false;
+    mainWindow.hide();
+    mainWindow.webContents.send('window-hidden');
+  }
+}
+
+function toggleWindow(): void {
+  if (isVisible) {
+    hideWindow();
+  } else {
+    showWindow();
+  }
+}
+
+function createTray(): void {
+  // Create a simple 16x16 tray icon using SVG
+  let icon;
+  
+  if (process.platform === 'darwin') {
+    // Create a template icon for macOS (monochrome)
+    icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(`
+      <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="4" width="12" height="2" fill="black"/>
+        <rect x="2" y="7" width="12" height="2" fill="black"/>
+        <rect x="2" y="10" width="12" height="2" fill="black"/>
+        <circle cx="4" cy="5" r="1" fill="white"/>
+        <circle cx="4" cy="8" r="1" fill="white"/>
+        <circle cx="4" cy="11" r="1" fill="white"/>
+      </svg>
+    `).toString('base64')}`);
+    icon.setTemplateImage(true);
+  } else {
+    // For Windows/Linux, use a colored icon
+    icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(`
+      <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="16" height="16" fill="#2563eb" rx="2"/>
+        <rect x="3" y="4" width="10" height="1.5" fill="white"/>
+        <rect x="3" y="7" width="10" height="1.5" fill="white"/>
+        <rect x="3" y="10" width="10" height="1.5" fill="white"/>
+        <circle cx="4.5" cy="4.75" r="0.75" fill="#2563eb"/>
+        <circle cx="4.5" cy="7.75" r="0.75" fill="#2563eb"/>
+        <circle cx="4.5" cy="10.75" r="0.75" fill="#2563eb"/>
+      </svg>
+    `).toString('base64')}`);
+  }
+  
+  tray = new Tray(icon);
+  
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show TodoCmd',
+      click: () => showWindow()
+    },
+    {
+      label: 'Toggle Window (Alt+t)',
+      click: () => toggleWindow()
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setToolTip('TodoCmd - Press Alt+t to open');
+  tray.setContextMenu(contextMenu);
+  
+  // Double-click to show window on all platforms
+  tray.on('double-click', () => {
+    toggleWindow();
+  });
+  
+  // Single click on Windows/Linux to toggle
+  if (process.platform !== 'darwin') {
+    tray.on('click', () => {
+      toggleWindow();
+    });
+  }
+}
+
+function rolloverTodos(): void {
+  const today = new Date().toISOString().split('T')[0];
+  const lastAccessed = store.get('lastAccessed');
+  
+  if (lastAccessed !== today) {
+    const todos = store.get('todos');
+    const lastTodos = todos[lastAccessed] || [];
+    
+    // Find incomplete todos from the last accessed day
+    const incompleteTodos = lastTodos.filter((todo: Todo) => !todo.completed);
+    
+    if (incompleteTodos.length > 0) {
+      // Move incomplete todos to today
+      const todayTodos = todos[today] || [];
+      const updatedIncompleteTodos = incompleteTodos.map((todo: Todo) => ({
+        ...todo,
+        id: `${Date.now()}-${Math.random()}`, // Generate new ID
+        createdAt: today
+      }));
+      
+      todos[today] = [...todayTodos, ...updatedIncompleteTodos];
+      store.set('todos', todos);
+    }
+    
+    store.set('lastAccessed', today);
+  }
+}
+
+app.whenReady().then(() => {
+  // Hide from dock on macOS
+  if (process.platform === 'darwin') {
+    app.dock.hide();
+  }
+  
+  createWindow();
+  createTray();
+  rolloverTodos();
+
+  // Register global shortcut
+  const ret = globalShortcut.register('Alt+t', () => {
+    toggleWindow();
+  });
+
+  if (!ret) {
+    console.log('Registration failed');
+  }
+
+  // IPC handlers
+  ipcMain.handle('get-todos', (_: any, date: string) => {
+    const todos = store.get('todos');
+    return todos[date] || [];
+  });
+
+  ipcMain.handle('save-todos', (_: any, date: string, todos: Todo[]) => {
+    const allTodos = store.get('todos');
+    allTodos[date] = todos;
+    store.set('todos', allTodos);
+    return true;
+  });
+
+  ipcMain.handle('get-all-dates', () => {
+    const todos = store.get('todos');
+    return Object.keys(todos).sort().reverse();
+  });
+
+  ipcMain.handle('hide-window', () => {
+    hideWindow();
+  });
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  // Keep the app running in the tray even when all windows are closed
+  // Only quit on macOS if explicitly requested
+  if (process.platform !== 'darwin' && app.isQuiting) {
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  app.isQuiting = true;
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  if (tray) {
+    tray.destroy();
+  }
+});

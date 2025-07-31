@@ -1,0 +1,50 @@
+name: Build Test
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+jobs:
+  test-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-20.04, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Test Electron app start
+        run: npm start &
+        timeout-minutes: 2
+
+      - name: Build package (macOS)
+        if: matrix.os == 'macos-latest'
+        run: npm run package -- --mac --dir
+
+      - name: Build package (Linux)
+        if: matrix.os == 'ubuntu-20.04'
+        run: npm run package -- --linux --dir
+
+      - name: Build package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npm run package -- --win --dir

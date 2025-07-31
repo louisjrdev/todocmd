@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#2563eb" rx="64"/>
+  
+  <!-- Main todo list background -->
+  <rect x="96" y="128" width="320" height="256" fill="white" rx="16"/>
+  
+  <!-- Todo items -->
+  <rect x="128" y="176" width="256" height="24" fill="#e5e7eb" rx="4"/>
+  <rect x="128" y="216" width="256" height="24" fill="#e5e7eb" rx="4"/>
+  <rect x="128" y="256" width="256" height="24" fill="#e5e7eb" rx="4"/>
+  <rect x="128" y="296" width="256" height="24" fill="#e5e7eb" rx="4"/>
+  <rect x="128" y="336" width="192" height="24" fill="#e5e7eb" rx="4"/>
+  
+  <!-- Checkboxes -->
+  <circle cx="144" cy="188" r="8" fill="#2563eb"/>
+  <circle cx="144" cy="228" r="8" fill="#10b981"/>
+  <circle cx="144" cy="268" r="8" fill="#2563eb"/>
+  <circle cx="144" cy="308" r="8" fill="#10b981"/>
+  <circle cx="144" cy="348" r="8" fill="#6b7280"/>
+  
+  <!-- Checkmarks for completed items -->
+  <path d="M140 225 L142 227 L148 221" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M140 305 L142 307 L148 301" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Title area -->
+  <rect x="128" y="144" width="80" height="16" fill="#1f2937" rx="2"/>
+</svg>

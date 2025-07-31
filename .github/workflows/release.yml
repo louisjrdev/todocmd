@@ -1,0 +1,120 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on version tags like v1.0.0, v1.1.0, etc.
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--mac'
+          - platform: 'ubuntu-20.04'
+            args: '--linux'
+          - platform: 'windows-latest'
+            args: '--win'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Build Electron app
+        run: npm run package -- ${{ matrix.args }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-build
+          path: release/
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release directory
+        run: mkdir -p release
+
+      - name: Move artifacts to release directory
+        run: |
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec mv {} release/ \;
+
+      - name: List release files
+        run: ls -la release/
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          name: TodoCmd v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## TodoCmd v${{ steps.version.outputs.VERSION }}
+            
+            ### Downloads
+            
+            **macOS**
+            - **TodoCmd-${{ steps.version.outputs.VERSION }}.dmg** - Universal installer (recommended)
+            - **TodoCmd-${{ steps.version.outputs.VERSION }}-arm64.dmg** - Apple Silicon only
+            - **TodoCmd-${{ steps.version.outputs.VERSION }}-mac.zip** - Portable version
+            
+            **Windows**
+            - **TodoCmd Setup ${{ steps.version.outputs.VERSION }}.exe** - Installer (recommended)
+            - **TodoCmd ${{ steps.version.outputs.VERSION }}.exe** - Portable version
+            
+            **Linux**
+            - **TodoCmd-${{ steps.version.outputs.VERSION }}.AppImage** - Universal (recommended)
+            - **TodoCmd_${{ steps.version.outputs.VERSION }}_amd64.deb** - Debian/Ubuntu
+            - **TodoCmd-${{ steps.version.outputs.VERSION }}.x86_64.rpm** - RedHat/Fedora
+            
+            ### Installation
+            
+            1. Download the appropriate file for your platform
+            2. **macOS**: Open the DMG and drag to Applications
+            3. **Windows**: Run the installer or extract the portable version
+            4. **Linux**: Make the AppImage executable or install the package
+            5. Launch with `Alt+T` from anywhere!
+            
+            ### What's New
+            - Initial release of TodoCmd
+            - Command palette interface with `Alt+T` global shortcut
+            - Beautiful glassmorphism UI with smooth animations
+            - Daily todo management with smart rollover
+            - System tray integration
+            - Cross-platform support
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
