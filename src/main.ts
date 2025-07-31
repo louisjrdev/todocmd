@@ -58,11 +58,7 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, 'index.html'));
   }
 
-  mainWindow.on('blur', () => {
-    if (isVisible) {
-      hideWindow();
-    }
-  });
+  // Removed blur event handler to prevent auto-hiding when clicking outside
 
   mainWindow.on('close', (event: any) => {
     if (!app.isQuiting) {
@@ -143,6 +139,19 @@ function createTray(): void {
     },
     { type: 'separator' },
     {
+      label: 'Toggle DevTools',
+      click: () => {
+        if (mainWindow && mainWindow.webContents) {
+          if (mainWindow.webContents.isDevToolsOpened()) {
+            mainWindow.webContents.closeDevTools();
+          } else {
+            mainWindow.webContents.openDevTools({ mode: 'detach' });
+          }
+        }
+      }
+    },
+    { type: 'separator' },
+    {
       label: 'Quit',
       click: () => {
         app.isQuiting = true;
@@ -205,7 +214,7 @@ app.whenReady().then(() => {
   createTray();
   rolloverTodos();
 
-  // Register global shortcut
+  // Register global shortcuts
   const ret = globalShortcut.register('Alt+t', () => {
     toggleWindow();
   });
@@ -213,6 +222,17 @@ app.whenReady().then(() => {
   if (!ret) {
     console.log('Registration failed');
   }
+
+  // Register DevTools toggle (F12 or Cmd+Option+I)
+  globalShortcut.register(process.platform === 'darwin' ? 'Command+Option+I' : 'F12', () => {
+    if (mainWindow && mainWindow.webContents) {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+      }
+    }
+  });
 
   // IPC handlers
   ipcMain.handle('get-todos', (_: any, date: string) => {

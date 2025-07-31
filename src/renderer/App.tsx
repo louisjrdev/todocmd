@@ -16,6 +16,7 @@ const App: React.FC = () => {
   
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const todoRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const dateString = format(currentDate, 'yyyy-MM-dd');
 
@@ -80,6 +81,27 @@ const App: React.FC = () => {
       inputRef.current?.focus();
     }
   }, [mode]);
+
+  // Auto-scroll selected todo into view
+  useEffect(() => {
+    if (mode === 'view' && todos.length > 0 && todoRefs.current[selectedIndex]) {
+      const selectedElement = todoRefs.current[selectedIndex];
+      const container = containerRef.current;
+      
+      if (selectedElement && container) {
+        selectedElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest'
+        });
+      }
+    }
+  }, [selectedIndex, mode, todos.length]);
+
+  // Update todoRefs array when todos change
+  useEffect(() => {
+    todoRefs.current = todoRefs.current.slice(0, todos.length);
+  }, [todos.length]);
 
   const addTodo = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -310,11 +332,12 @@ const App: React.FC = () => {
             )}
           </AnimatePresence>
 
-          <div className="todos-container">
+          <div className="todos-container" ref={containerRef}>
             <AnimatePresence>
               {displayTodos.map((todo, index) => (
                 <motion.div
                   key={todo.id}
+                  ref={(el) => (todoRefs.current[index] = el)}
                   className={`todo-item ${todo.completed ? 'completed' : ''} ${
                     mode === 'view' && index === selectedIndex ? 'selected' : ''
                   }`}

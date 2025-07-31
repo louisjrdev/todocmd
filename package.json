@@ -90,9 +90,7 @@
             "arm64"
           ]
         }
-      ],
-      "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist"
+      ]
     },
     "win": {
       "icon": "assets/icon.ico",
