@@ -57,6 +57,7 @@
   "dependencies": {
     "date-fns": "^2.30.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.6.2",
     "framer-motion": "^10.16.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -71,6 +72,11 @@
       "dist/**/*",
       "assets/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "louisjrdev",
+      "repo": "todocmd"
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.icns",

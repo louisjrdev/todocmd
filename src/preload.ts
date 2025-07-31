@@ -16,6 +16,9 @@ const electronAPI = {
   onWindowShown: (callback: () => void) => ipcRenderer.on('window-shown', callback),
   onWindowHidden: (callback: () => void) => ipcRenderer.on('window-hidden', callback),
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
+  // Auto-updater APIs
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

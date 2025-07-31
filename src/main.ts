@@ -1,6 +1,7 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen: electronScreen, Tray, Menu, nativeImage } = require('electron');
 const { join } = require('path');
 const Store = require('electron-store');
+const { autoUpdater } = require('electron-updater');
 
 interface Todo {
   id: string;
@@ -204,6 +205,47 @@ function rolloverTodos(): void {
   }
 }
 
+// Auto-updater configuration
+function checkForUpdates() {
+  // Only check for updates in production
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Skipping update check in development');
+    return;
+  }
+
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
+// Auto-updater event handlers
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for update...');
+});
+
+autoUpdater.on('update-available', (info: any) => {
+  console.log('Update available:', info);
+});
+
+autoUpdater.on('update-not-available', (info: any) => {
+  console.log('Update not available:', info);
+});
+
+autoUpdater.on('error', (err: any) => {
+  console.log('Error in auto-updater:', err);
+});
+
+autoUpdater.on('download-progress', (progressObj: any) => {
+  let log_message = "Download speed: " + progressObj.bytesPerSecond;
+  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
+  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+  console.log(log_message);
+});
+
+autoUpdater.on('update-downloaded', (info: any) => {
+  console.log('Update downloaded:', info);
+  // Auto-install and restart
+  autoUpdater.quitAndInstall();
+});
+
 app.whenReady().then(() => {
   // Hide from dock on macOS
   if (process.platform === 'darwin') {
@@ -213,6 +255,9 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   rolloverTodos();
+
+  // Check for updates
+  checkForUpdates();
 
   // Register global shortcuts
   const ret = globalShortcut.register('Alt+t', () => {
@@ -254,6 +299,15 @@ app.whenReady().then(() => {
 
   ipcMain.handle('hide-window', () => {
     hideWindow();
+  });
+
+  // Auto-updater IPC handlers
+  ipcMain.handle('check-for-updates', () => {
+    checkForUpdates();
+  });
+
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
   });
 
   app.on('activate', () => {

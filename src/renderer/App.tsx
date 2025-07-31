@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [isVisible, setIsVisible] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
   
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,10 +50,21 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Load app version
+  const loadAppVersion = useCallback(async () => {
+    try {
+      const version = await (window.electronAPI as any).getAppVersion();
+      setAppVersion(version);
+    } catch (error) {
+      console.error('Failed to load app version:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadTodos();
     loadAvailableDates();
-  }, [loadTodos, loadAvailableDates]);
+    loadAppVersion();
+  }, [loadTodos, loadAvailableDates, loadAppVersion]);
 
   useEffect(() => {
     const handleWindowShown = () => {
@@ -84,14 +96,15 @@ const App: React.FC = () => {
 
   // Auto-scroll selected todo into view
   useEffect(() => {
-    if (mode === 'view' && todos.length > 0 && todoRefs.current[selectedIndex]) {
+    const displayTodos = getDisplayTodos();
+    if (mode === 'view' && displayTodos.length > 0 && todoRefs.current[selectedIndex]) {
       const selectedElement = todoRefs.current[selectedIndex];
-      const container = containerRef.current;
       
-      if (selectedElement && container) {
+      if (selectedElement) {
+        // Use scrollIntoView with more specific options
         selectedElement.scrollIntoView({
           behavior: 'smooth',
-          block: 'nearest',
+          block: 'center',
           inline: 'nearest'
         });
       }
@@ -100,8 +113,19 @@ const App: React.FC = () => {
 
   // Update todoRefs array when todos change
   useEffect(() => {
-    todoRefs.current = todoRefs.current.slice(0, todos.length);
+    const displayTodos = getDisplayTodos();
+    todoRefs.current = todoRefs.current.slice(0, displayTodos.length);
   }, [todos.length]);
+
+  // Ensure selectedIndex stays within bounds of displayTodos
+  useEffect(() => {
+    const displayTodos = getDisplayTodos();
+    if (displayTodos.length > 0 && selectedIndex >= displayTodos.length) {
+      setSelectedIndex(displayTodos.length - 1);
+    } else if (displayTodos.length === 0 && selectedIndex !== 0) {
+      setSelectedIndex(0);
+    }
+  }, [todos, selectedIndex]);
 
   const addTodo = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -113,12 +137,12 @@ const App: React.FC = () => {
       createdAt: dateString,
     };
     
-    const updatedTodos = [...todos, newTodo];
+    const updatedTodos = [newTodo, ...todos]; // Add at the beginning
     setTodos(updatedTodos);
     await saveTodos(updatedTodos);
     setInput('');
     setMode('view');
-    setSelectedIndex(updatedTodos.length - 1);
+    setSelectedIndex(0); // Select the newly added todo at index 0
   }, [todos, dateString, saveTodos]);
 
   const toggleTodo = useCallback(async (id: string) => {
@@ -141,6 +165,15 @@ const App: React.FC = () => {
     await saveTodos(updatedTodos);
     setSelectedIndex(Math.max(0, Math.min(selectedIndex, updatedTodos.length - 1)));
   }, [todos, saveTodos, selectedIndex]);
+
+  const checkForUpdates = useCallback(async () => {
+    try {
+      await (window.electronAPI as any).checkForUpdates();
+      console.log('Checking for updates...');
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    }
+  }, []);
 
   const editTodo = useCallback(async (id: string, newText: string) => {
     if (!newText.trim()) {
@@ -185,15 +218,21 @@ const App: React.FC = () => {
         
       case 'ArrowUp':
         e.preventDefault();
-        if (mode === 'view' && todos.length > 0) {
-          setSelectedIndex(prev => Math.max(0, prev - 1));
+        if (mode === 'view') {
+          const displayTodos = getDisplayTodos();
+          if (displayTodos.length > 0) {
+            setSelectedIndex(prev => Math.max(0, prev - 1));
+          }
         }
         break;
         
       case 'ArrowDown':
         e.preventDefault();
-        if (mode === 'view' && todos.length > 0) {
-          setSelectedIndex(prev => Math.min(todos.length - 1, prev + 1));
+        if (mode === 'view') {
+          const displayTodos = getDisplayTodos();
+          if (displayTodos.length > 0) {
+            setSelectedIndex(prev => Math.min(displayTodos.length - 1, prev + 1));
+          }
         }
         break;
         
@@ -211,6 +250,17 @@ const App: React.FC = () => {
         }
         break;
         
+      case ' ':
+        if (mode === 'view') {
+          const displayTodos = getDisplayTodos();
+          if (displayTodos.length > 0) {
+            e.preventDefault();
+            toggleTodo(displayTodos[selectedIndex].id);
+          }
+        }
+        // Don't prevent default in add/edit modes - allow typing spaces
+        break;
+        
       case 'n':
         if (mode === 'view') {
           e.preventDefault();
@@ -220,19 +270,25 @@ const App: React.FC = () => {
         break;
         
       case 'e':
-        if (mode === 'view' && todos.length > 0) {
-          e.preventDefault();
-          const todo = todos[selectedIndex];
-          setMode('edit');
-          setEditingId(todo.id);
-          setInput(todo.text);
+        if (mode === 'view') {
+          const displayTodos = getDisplayTodos();
+          if (displayTodos.length > 0) {
+            e.preventDefault();
+            const todo = displayTodos[selectedIndex];
+            setMode('edit');
+            setEditingId(todo.id);
+            setInput(todo.text);
+          }
         }
         break;
         
       case 'Delete':
       case 'Backspace':
-        if (mode === 'view' && todos.length > 0 && (e.key === 'Delete' || (e.key === 'Backspace' && e.metaKey))) {
-          deleteTodo(todos[selectedIndex].id);
+        if (mode === 'view' && (e.key === 'Delete' || (e.key === 'Backspace' && e.metaKey))) {
+          const displayTodos = getDisplayTodos();
+          if (displayTodos.length > 0) {
+            deleteTodo(displayTodos[selectedIndex].id);
+          }
         }
         break;
         
@@ -240,6 +296,13 @@ const App: React.FC = () => {
         if (mode === 'view') {
           e.preventDefault();
           setCurrentDate(new Date());
+        }
+        break;
+        
+      case 'u':
+        if (mode === 'view') {
+          e.preventDefault();
+          checkForUpdates();
         }
         break;
     }
@@ -272,9 +335,9 @@ const App: React.FC = () => {
     <div className="app" ref={containerRef}>
       <motion.div
         className="window"
-        initial={{ opacity: 0, scale: 0.9, y: -20 }}
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
       >
         <div className="header">
           <div className="date-nav">
@@ -341,11 +404,10 @@ const App: React.FC = () => {
                   className={`todo-item ${todo.completed ? 'completed' : ''} ${
                     mode === 'view' && index === selectedIndex ? 'selected' : ''
                   }`}
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.2 }}
-                  layout
+                  exit={{ opacity: 0, x: 5 }}
+                  transition={{ duration: 0.1, ease: "easeOut" }}
                 >
                   <div className="todo-checkbox">
                     {todo.completed ? '✓' : '○'}
@@ -360,7 +422,7 @@ const App: React.FC = () => {
                 className="empty-state"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
               >
                 <p>No todos for {getDateDisplay().toLowerCase()}</p>
                 <p className="hint">Press 'n' to add a new todo</p>
@@ -377,6 +439,7 @@ const App: React.FC = () => {
                 <span><kbd>e</kbd> edit</span>
                 <span><kbd>⌫</kbd> delete</span>
                 <span><kbd>t</kbd> today</span>
+                <span><kbd>u</kbd> update</span>
               </>
             ) : (
               <>
@@ -385,6 +448,11 @@ const App: React.FC = () => {
               </>
             )}
           </div>
+          {appVersion && (
+            <div className="version-info">
+              <span>v{appVersion}</span>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
