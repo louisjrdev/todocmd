@@ -327,23 +327,17 @@ app.whenReady().then(() => {
 
   // Configure auto-updater
   if (process.env.NODE_ENV !== 'development') {
-    // Set explicit feed URL for better debugging
-    const feedUrl = `https://github.com/louisjrdev/todocmd/releases/latest/download`;
     console.log('Auto-updater configuration:');
     console.log('- App version:', app.getVersion());
     console.log('- Platform:', process.platform);
     console.log('- Arch:', process.arch);
-    console.log('- Feed URL:', feedUrl);
-    
-    // Configure auto-updater explicitly
-    autoUpdater.setFeedURL({
-      provider: 'github',
-      owner: 'louisjrdev',
-      repo: 'todocmd'
-    });
     
     // Enable auto-updater logging
     autoUpdater.logger = console;
+    
+    // Force auto-updater to use GitHub provider
+    // This should automatically detect the publish config from package.json
+    autoUpdater.autoDownload = false; // Disable auto-download for better control
   }
 
   // Check for updates

@@ -76,7 +76,8 @@
     "publish": {
       "provider": "github",
       "owner": "louisjrdev",
-      "repo": "todocmd"
+      "repo": "todocmd",
+      "publishAutoUpdate": true
     },
     "mac": {
       "category": "public.app-category.productivity",

@@ -13,6 +13,7 @@ interface TodoState {
   availableDates: string[];
   isVisible: boolean;
   appVersion: string;
+  updateStatus: 'idle' | 'checking' | 'available' | 'not-available' | 'error';
   
   // Actions
   setTodos: (todos: Todo[]) => void;
@@ -24,6 +25,7 @@ interface TodoState {
   setAvailableDates: (dates: string[]) => void;
   setIsVisible: (visible: boolean) => void;
   setAppVersion: (version: string) => void;
+  setUpdateStatus: (status: 'idle' | 'checking' | 'available' | 'not-available' | 'error') => void;
   
   // Todo operations
   addTodo: (text: string) => Promise<void>;
@@ -61,6 +63,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   availableDates: [],
   isVisible: false,
   appVersion: '',
+  updateStatus: 'idle',
   
   // Actions
   setTodos: (todos) => set({ todos }),
@@ -72,6 +75,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   setAvailableDates: (availableDates) => set({ availableDates }),
   setIsVisible: (isVisible) => set({ isVisible }),
   setAppVersion: (appVersion) => set({ appVersion }),
+  setUpdateStatus: (updateStatus) => set({ updateStatus }),
   
   // Utility functions
   sortTodos: (todosToSort: Todo[]) => {
@@ -246,11 +250,23 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   },
   
   checkForUpdates: async () => {
+    const { setUpdateStatus } = get();
     try {
+      console.log('🔍 Triggering update check...');
+      setUpdateStatus('checking');
       await (window.electronAPI as any).checkForUpdates();
-      console.log('Checking for updates...');
+      console.log('Update check initiated - watch for results in console');
+      
+      // Reset status after a delay if no response
+      setTimeout(() => {
+        const currentStatus = get().updateStatus;
+        if (currentStatus === 'checking') {
+          setUpdateStatus('idle');
+        }
+      }, 10000);
     } catch (error) {
-      console.error('Failed to check for updates:', error);
+      console.error('Failed to trigger update check:', error);
+      setUpdateStatus('error');
     }
   },
   

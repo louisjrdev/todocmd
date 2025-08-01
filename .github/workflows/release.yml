@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     timeout-minutes: 30
@@ -40,8 +40,8 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Build Electron app
-        run: npx electron-builder ${{ matrix.args }} --publish=always
+      - name: Build Electron app (without publishing)
+        run: npx electron-builder ${{ matrix.args }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -52,13 +52,22 @@ jobs:
           path: release/
 
   publish:
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -70,7 +79,7 @@ jobs:
 
       - name: Move artifacts to release directory
         run: |
-          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec mv {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.yml" -o -name "*.yaml" \) -exec mv {} release/ \;
 
       - name: List release files
         run: ls -la release/
@@ -105,13 +114,8 @@ jobs:
             3. **Windows**: Run the installer or extract the portable version
             4. Launch with `Alt+T` from anywhere!
             
-            ### What's New
-            - Fixed Windows build icon size requirements (now 256x256)
-            - Improved icon generation with proper todo checklist design
-            - Enhanced UI with auto-scroll and better navigation
-            - Added DevTools shortcuts for debugging
-            - System tray integration with quick access menu
-            - Cross-platform support for macOS and Windows
+            ### Auto-Updates
+            This release includes automatic update checking. Press `u` in the app to check for updates.
           draft: false
           prerelease: false
         env:
