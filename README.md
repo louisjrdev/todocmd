@@ -5,7 +5,7 @@ A beautiful, keyboard-driven desktop todo application with command palette inter
 [![Build and Release](https://github.com/louisjrdev/todocmd/actions/workflows/release.yml/badge.svg)](https://github.com/louisjrdev/todocmd/actions/workflows/release.yml)
 [![Build Test](https://github.com/louisjrdev/todocmd/actions/workflows/test.yml/badge.svg)](https://github.com/louisjrdev/todocmd/actions/workflows/test.yml)
 
-![TodoCmd](assets/icon.svg)
+![TodoCmd](ui.png)
 
 ## Features
 
