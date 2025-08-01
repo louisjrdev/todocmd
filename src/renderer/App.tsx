@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTodoStore } from './store/todoStore';
+import { usePreferencesStore } from './store/preferencesStore';
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import TodoHeader from './components/TodoHeader';
 import TodoFooter from './components/TodoFooter';
 import TodoInput from './components/TodoInput';
 import TodoList from './components/TodoList';
+import PreferencesModal from './components/PreferencesModal';
 import './App.css';
 
 const App: React.FC = () => {
@@ -28,6 +30,8 @@ const App: React.FC = () => {
     setUpdateStatus,
   } = useTodoStore();
   
+  const { openPreferences, loadSettings } = usePreferencesStore();
+  
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const todosContainerRef = useRef<HTMLDivElement>(null);
@@ -38,6 +42,7 @@ const App: React.FC = () => {
   useEffect(() => {
     loadAvailableDates(); 
     loadAppVersion();
+    loadSettings(); // Load preferences settings on startup
     
     // Set up the global update status callback
     (window as any).updateStatusCallback = (status: 'checking' | 'available' | 'not-available' | 'error') => {
@@ -50,7 +55,7 @@ const App: React.FC = () => {
         }, status === 'checking' ? 0 : 3000); // Don't auto-clear checking, clear others after 3s
       }
     };
-  }, [loadAvailableDates, loadAppVersion, setUpdateStatus]);
+  }, [loadAvailableDates, loadAppVersion, loadSettings, setUpdateStatus]);
 
   // Load todos whenever the current date changes
   useEffect(() => {
@@ -155,6 +160,9 @@ const App: React.FC = () => {
 
         <TodoFooter />
       </motion.div>
+      
+      {/* Preferences Modal */}
+      <PreferencesModal />
     </div>
   );
 };

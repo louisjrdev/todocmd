@@ -2,10 +2,12 @@ import React, { forwardRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useTodoStore } from '../store/todoStore';
+import { usePreferencesStore } from '../store/preferencesStore';
 import TodoItem from './TodoItem';
 
 const TodoList = forwardRef<HTMLDivElement>((props, ref) => {
   const { todos, currentDate, selectedIndex, mode } = useTodoStore();
+  const { settings } = usePreferencesStore();
   
   // Scroll to top when date changes (with animation delay)
   useEffect(() => {
@@ -77,7 +79,7 @@ const TodoList = forwardRef<HTMLDivElement>((props, ref) => {
             transition={{ duration: 0.15, ease: "easeOut" }}
           >
             <p>No todos for {getDateDisplay().toLowerCase()}</p>
-            <p className="hint">Press 'n' to add a new todo</p>
+            <p className="hint">Press '{settings.keybindings.navigation.newTodo}' to add a new todo</p>
           </motion.div>
         )}
       </div>

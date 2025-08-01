@@ -1,8 +1,11 @@
 import React from 'react';
+import { Settings } from 'lucide-react';
 import { useTodoStore } from '../store/todoStore';
+import { usePreferencesStore } from '../store/preferencesStore';
 
 const TodoFooter: React.FC = () => {
   const { mode, appVersion, updateStatus } = useTodoStore();
+  const { openPreferences, settings } = usePreferencesStore();
 
   const getUpdateStatusIcon = () => {
     switch (updateStatus) {
@@ -41,14 +44,23 @@ const TodoFooter: React.FC = () => {
 
   return (
     <div className="footer">
+      <div className="footer-left">
+        <button 
+          className="settings-button"
+          onClick={openPreferences}
+          title="Preferences (Ctrl+,)"
+        >
+          <Settings size={12} />
+        </button>
+      </div>
       <div className="shortcuts">
         {mode === 'view' ? (
           <>
-            <span><kbd>n</kbd> new</span>
-            <span><kbd>e</kbd> edit</span>
-            <span><kbd>⌫</kbd> delete</span>
-            <span><kbd>t</kbd> today</span>
-            <span><kbd>u</kbd> update</span>
+            <span><kbd>{settings.keybindings.navigation.newTodo}</kbd> new</span>
+            <span><kbd>{settings.keybindings.navigation.editMode}</kbd> edit</span>
+            <span><kbd>{settings.keybindings.navigation.deleteSelected}</kbd> delete</span>
+            <span><kbd>{settings.keybindings.navigation.todayView}</kbd> today</span>
+            <span><kbd>{settings.keybindings.navigation.checkUpdates}</kbd> update</span>
           </>
         ) : (
           <>

@@ -23,6 +23,31 @@ const store = new Store({
   }
 });
 
+// Settings store for preferences
+const settingsStore = new Store({
+  name: 'settings',
+  defaults: {
+    keybindings: {
+      global: {
+        toggleApp: 'Alt+T'
+      },
+      navigation: {
+        newTodo: 'n',
+        editMode: 'e',
+        deleteSelected: 'Delete',
+        todayView: 't',
+        checkUpdates: 'u',
+        previousDay: 'ArrowLeft',
+        nextDay: 'ArrowRight'
+      },
+      system: {
+        preferences: process.platform === 'darwin' ? 'Cmd+,' : 'Ctrl+,',
+        devTools: process.platform === 'darwin' ? 'Cmd+Option+I' : 'F12'
+      }
+    }
+  }
+});
+
 let mainWindow: any = null;
 let tray: any = null;
 let isVisible = false;
@@ -32,9 +57,9 @@ function createWindow(): void {
   
   mainWindow = new BrowserWindow({
     width: 600,
-    height: 400,
+    height: 500,
     x: Math.round((width - 600) / 2),
-    y: Math.round((height - 400) / 2),
+    y: Math.round((height - 500) / 2),
     show: false,
     frame: false,
     alwaysOnTop: true,
@@ -93,6 +118,37 @@ function toggleWindow(): void {
   } else {
     showWindow();
   }
+}
+
+function registerGlobalShortcuts(): void {
+  // Clear existing shortcuts
+  globalShortcut.unregisterAll();
+  
+  const settings = settingsStore.get('keybindings') as any;
+  
+  // Register toggle app shortcut
+  const toggleShortcut = settings.global.toggleApp;
+  const ret = globalShortcut.register(toggleShortcut, () => {
+    toggleWindow();
+  });
+
+  if (!ret) {
+    console.log(`Failed to register shortcut: ${toggleShortcut}`);
+  } else {
+    console.log(`Registered global shortcut: ${toggleShortcut}`);
+  }
+
+  // Register DevTools toggle
+  const devToolsShortcut = settings.system.devTools;
+  globalShortcut.register(devToolsShortcut, () => {
+    if (mainWindow && mainWindow.webContents) {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+      }
+    }
+  });
 }
 
 function createTray(): void {
@@ -347,25 +403,8 @@ app.whenReady().then(() => {
   // Check for updates
   checkForUpdates();
 
-  // Register global shortcuts
-  const ret = globalShortcut.register('Alt+t', () => {
-    toggleWindow();
-  });
-
-  if (!ret) {
-    console.log('Registration failed');
-  }
-
-  // Register DevTools toggle (F12 or Cmd+Option+I)
-  globalShortcut.register(process.platform === 'darwin' ? 'Command+Option+I' : 'F12', () => {
-    if (mainWindow && mainWindow.webContents) {
-      if (mainWindow.webContents.isDevToolsOpened()) {
-        mainWindow.webContents.closeDevTools();
-      } else {
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
-      }
-    }
-  });
+  // Register global shortcuts from settings
+  registerGlobalShortcuts();
 
   // IPC handlers
   ipcMain.handle('get-todos', (_: any, date: string) => {
@@ -396,6 +435,45 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+  });
+
+  ipcMain.handle('get-platform', () => {
+    return process.platform;
+  });
+
+  // Settings IPC handlers
+  ipcMain.handle('get-settings', () => {
+    return settingsStore.store;
+  });
+
+  ipcMain.handle('save-settings', (_: any, settings: any) => {
+    settingsStore.store = settings;
+    
+    // Re-register global shortcuts when settings change
+    registerGlobalShortcuts();
+    
+    return true;
+  });
+
+  ipcMain.handle('get-setting', (_: any, key: string) => {
+    return settingsStore.get(key);
+  });
+
+  ipcMain.handle('set-setting', (_: any, key: string, value: any) => {
+    settingsStore.set(key, value);
+    
+    // Re-register global shortcuts if keybindings changed
+    if (key === 'keybindings' || key.startsWith('keybindings.')) {
+      registerGlobalShortcuts();
+    }
+    
+    return true;
+  });
+
+  ipcMain.handle('reset-settings', () => {
+    settingsStore.clear();
+    registerGlobalShortcuts(); // Re-register with default shortcuts
+    return settingsStore.store;
   });
 
   app.on('activate', () => {

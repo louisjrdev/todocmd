@@ -190,14 +190,44 @@ body {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.1);
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   position: relative;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.settings-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-button:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.settings-button:active {
+  transform: scale(0.95);
 }
 
 .shortcuts {
   display: flex;
   gap: 16px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 11px;
   color: rgba(0, 0, 0, 0.5);
 }
@@ -337,6 +367,276 @@ body {
   }
 }
 
+/* Preferences Modal Styles */
+.preferences-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.preferences-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  width: 700px;
+  height: 500px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preferences-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(249, 250, 251, 1);
+}
+
+.preferences-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-button:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.preferences-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.preferences-sidebar {
+  width: 200px;
+  background: rgba(249, 250, 251, 1);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 12px 24px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.tab-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.tab-button.active {
+  background: rgba(59, 130, 246, 0.1);
+  color: rgba(59, 130, 246, 1);
+  border-left-color: rgba(59, 130, 246, 1);
+  font-weight: 500;
+}
+
+.preferences-panel {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.panel-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.panel-description {
+  margin: 0 0 24px 0;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.6);
+  line-height: 1.4;
+}
+
+.setting-section {
+  margin-bottom: 32px;
+}
+
+.setting-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.setting-item label {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.8);
+  font-weight: 500;
+}
+
+.shortcut-input {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.shortcut-input:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.shortcut-input:focus {
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3);
+}
+
+.shortcut-input.recording {
+  background: rgba(0, 122, 255, 0.1);
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% {
+    background: rgba(0, 122, 255, 0.1);
+  }
+  50% {
+    background: rgba(0, 122, 255, 0.2);
+  }
+}
+
+.shortcut-input.empty kbd {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+}
+
+.recording-text {
+  background: rgba(0, 122, 255, 0.8);
+  color: white;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: recording-blink 1s ease-in-out infinite;
+}
+
+@keyframes recording-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.shortcut-input kbd {
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+  text-align: center;
+}
+
+.shortcut-input kbd:hover {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.setting-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.reset-button {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-button:hover {
+  background: rgba(255, 59, 48, 0.15);
+  border-color: rgba(255, 59, 48, 0.3);
+}
+
+.reset-button:active {
+  transform: scale(0.98);
+}
+
+.coming-soon {
+  text-align: center;
+  padding: 60px 20px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.coming-soon p:first-child {
+  font-size: 24px;
+  margin: 0 0 12px 0;
+}
+
+.coming-soon-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 kbd {
   background: rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -452,5 +752,144 @@ kbd {
   
   .todos-container::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
+  }
+
+  /* Preferences Modal Dark Mode */
+  .preferences-overlay {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .preferences-modal {
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .preferences-header {
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .preferences-header h2 {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .close-button {
+    color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .close-button:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .preferences-sidebar {
+    background: rgba(255, 255, 255, 0.03);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .tab-button {
+    color: rgba(255, 255, 255, 0.7);
+    background: transparent;
+  }
+
+  .tab-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .tab-button.active {
+    background: rgba(10, 132, 255, 0.2);
+    color: #0A84FF;
+    border-right: 2px solid #0A84FF;
+  }
+
+  .preferences-panel {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .panel-content h3 {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .panel-description {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .setting-section h4 {
+    color: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .setting-item label {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .shortcut-input {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .shortcut-input:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .shortcut-input:focus {
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.4);
+  }
+
+  .shortcut-input.recording {
+    background: rgba(10, 132, 255, 0.15);
+    border: 1px solid rgba(10, 132, 255, 0.4);
+  }
+
+  .shortcut-input.empty kbd {
+    background: rgba(255, 59, 48, 0.15);
+    border-color: rgba(255, 59, 48, 0.3);
+    color: rgba(255, 59, 48, 0.9);
+  }
+
+  .recording-text {
+    background: rgba(10, 132, 255, 0.9);
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .shortcut-input kbd {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .shortcut-input kbd:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .setting-actions {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .reset-button {
+    background: rgba(255, 59, 48, 0.15);
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    color: rgba(255, 59, 48, 0.9);
+  }
+
+  .reset-button:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: rgba(255, 59, 48, 0.4);
+  }
+
+  .coming-soon {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .settings-button {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .settings-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
   }
 }

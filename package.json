@@ -59,6 +59,7 @@
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "framer-motion": "^10.16.0",
+    "lucide-react": "^0.536.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^5.0.7"
