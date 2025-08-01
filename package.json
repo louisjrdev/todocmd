@@ -1,6 +1,6 @@
 {
   "name": "todocmd",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A command palette style todo app for desktop",
   "main": "dist/main.js",
   "scripts": {
