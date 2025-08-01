@@ -209,28 +209,97 @@ function rolloverTodos(): void {
 function checkForUpdates() {
   // Only check for updates in production
   if (process.env.NODE_ENV === 'development') {
-    console.log('Skipping update check in development');
+    console.log('Skipping update check in development mode');
+    // Show a notification in development
+    if (mainWindow) {
+      mainWindow.webContents.executeJavaScript(`
+        console.log('Update check triggered in development mode - updates are only available in production builds');
+      `);
+    }
     return;
   }
 
-  autoUpdater.checkForUpdatesAndNotify();
+  console.log('Checking for updates...');
+  
+  // Add timeout for update check
+  const updateTimeout = setTimeout(() => {
+    console.log('Update check timed out');
+    if (mainWindow) {
+      mainWindow.webContents.executeJavaScript(`
+        console.log('⏰ Update check timed out - please check your internet connection');
+      `);
+    }
+  }, 10000); // 10 second timeout
+
+  // Clear timeout when any auto-updater event fires
+  const clearTimeoutOnEvent = () => clearTimeout(updateTimeout);
+  autoUpdater.once('checking-for-update', clearTimeoutOnEvent);
+  autoUpdater.once('update-available', clearTimeoutOnEvent);
+  autoUpdater.once('update-not-available', clearTimeoutOnEvent);
+  autoUpdater.once('error', clearTimeoutOnEvent);
+
+  try {
+    autoUpdater.checkForUpdatesAndNotify();
+  } catch (error) {
+    clearTimeout(updateTimeout);
+    console.error('Failed to initiate update check:', error);
+    if (mainWindow) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      mainWindow.webContents.executeJavaScript(`
+        console.error('❌ Failed to start update check:', '${errorMessage}');
+      `);
+    }
+  }
 }
 
 // Auto-updater event handlers
 autoUpdater.on('checking-for-update', () => {
   console.log('Checking for update...');
+  if (mainWindow) {
+    mainWindow.webContents.executeJavaScript(`
+      console.log('🔍 Checking for updates...');
+    `);
+  }
 });
 
 autoUpdater.on('update-available', (info: any) => {
   console.log('Update available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.executeJavaScript(`
+      console.log('📦 Update available: ${info.version}');
+    `);
+  }
 });
 
 autoUpdater.on('update-not-available', (info: any) => {
   console.log('Update not available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.executeJavaScript(`
+      console.log('✅ App is up to date!');
+    `);
+  }
 });
 
 autoUpdater.on('error', (err: any) => {
   console.log('Error in auto-updater:', err);
+  if (mainWindow) {
+    let errorMessage = 'Update check failed';
+    if (err.message) {
+      if (err.message.includes('ENOTFOUND') || err.message.includes('network')) {
+        errorMessage = 'Network error - check your internet connection';
+      } else if (err.message.includes('404')) {
+        errorMessage = 'No releases found on GitHub';
+      } else if (err.message.includes('rate limit')) {
+        errorMessage = 'GitHub rate limit exceeded - try again later';
+      } else {
+        errorMessage = err.message;
+      }
+    }
+    
+    mainWindow.webContents.executeJavaScript(`
+      console.error('❌ Update error:', '${errorMessage}');
+    `);
+  }
 });
 
 autoUpdater.on('download-progress', (progressObj: any) => {
@@ -255,6 +324,27 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   rolloverTodos();
+
+  // Configure auto-updater
+  if (process.env.NODE_ENV !== 'development') {
+    // Set explicit feed URL for better debugging
+    const feedUrl = `https://github.com/louisjrdev/todocmd/releases/latest/download`;
+    console.log('Auto-updater configuration:');
+    console.log('- App version:', app.getVersion());
+    console.log('- Platform:', process.platform);
+    console.log('- Arch:', process.arch);
+    console.log('- Feed URL:', feedUrl);
+    
+    // Configure auto-updater explicitly
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'louisjrdev',
+      repo: 'todocmd'
+    });
+    
+    // Enable auto-updater logging
+    autoUpdater.logger = console;
+  }
 
   // Check for updates
   checkForUpdates();
