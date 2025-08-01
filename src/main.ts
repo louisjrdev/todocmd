@@ -258,6 +258,7 @@ autoUpdater.on('checking-for-update', () => {
   if (mainWindow) {
     mainWindow.webContents.executeJavaScript(`
       console.log('🔍 Checking for updates...');
+      if (window.updateStatusCallback) window.updateStatusCallback('checking');
     `);
   }
 });
@@ -267,6 +268,7 @@ autoUpdater.on('update-available', (info: any) => {
   if (mainWindow) {
     mainWindow.webContents.executeJavaScript(`
       console.log('📦 Update available: ${info.version}');
+      if (window.updateStatusCallback) window.updateStatusCallback('available');
     `);
   }
 });
@@ -276,6 +278,7 @@ autoUpdater.on('update-not-available', (info: any) => {
   if (mainWindow) {
     mainWindow.webContents.executeJavaScript(`
       console.log('✅ App is up to date!');
+      if (window.updateStatusCallback) window.updateStatusCallback('not-available');
     `);
   }
 });
@@ -298,6 +301,7 @@ autoUpdater.on('error', (err: any) => {
     
     mainWindow.webContents.executeJavaScript(`
       console.error('❌ Update error:', '${errorMessage}');
+      if (window.updateStatusCallback) window.updateStatusCallback('error');
     `);
   }
 });

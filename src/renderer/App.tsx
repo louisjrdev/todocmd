@@ -25,6 +25,7 @@ const App: React.FC = () => {
     setInput,
     setEditingId,
     resetSelectedIndex,
+    setUpdateStatus,
   } = useTodoStore();
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +38,19 @@ const App: React.FC = () => {
   useEffect(() => {
     loadAvailableDates(); 
     loadAppVersion();
-  }, [loadAvailableDates, loadAppVersion]);
+    
+    // Set up the global update status callback
+    (window as any).updateStatusCallback = (status: 'checking' | 'available' | 'not-available' | 'error') => {
+      setUpdateStatus(status);
+      
+      // Auto-reset status after a delay (except for 'available' which should persist)
+      if (status !== 'available') {
+        setTimeout(() => {
+          setUpdateStatus('idle');
+        }, status === 'checking' ? 0 : 3000); // Don't auto-clear checking, clear others after 3s
+      }
+    };
+  }, [loadAvailableDates, loadAppVersion, setUpdateStatus]);
 
   // Load todos whenever the current date changes
   useEffect(() => {
