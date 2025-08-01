@@ -60,7 +60,8 @@
     "electron-updater": "^6.6.2",
     "framer-motion": "^10.16.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "zustand": "^5.0.7"
   },
   "build": {
     "appId": "com.louisjrdev.todocmd",

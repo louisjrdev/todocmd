@@ -1,71 +1,67 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
-import { Todo } from './types';
+import { useTodoStore } from './store/todoStore';
+import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
+import TodoHeader from './components/TodoHeader';
+import TodoFooter from './components/TodoFooter';
+import TodoInput from './components/TodoInput';
+import TodoList from './components/TodoList';
 import './App.css';
 
 const App: React.FC = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [input, setInput] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [isVisible, setIsVisible] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('');
+  const {
+    todos,
+    currentDate,
+    input,
+    mode,
+    appVersion,
+    selectedIndex,
+    loadTodos,
+    loadAvailableDates,
+    loadAppVersion,
+    setIsVisible,
+    setMode,
+    setSelectedIndex,
+    setInput,
+    setEditingId,
+    resetSelectedIndex,
+  } = useTodoStore();
   
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const todoRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const todosContainerRef = useRef<HTMLDivElement>(null);
 
-  const dateString = format(currentDate, 'yyyy-MM-dd');
+  const handleKeyDown = useKeyboardNavigation();
 
-  // Load todos for current date
-  const loadTodos = useCallback(async () => {
-    try {
-      const todosForDate = await window.electronAPI.getTodos(dateString);
-      setTodos(todosForDate);
-    } catch (error) {
-      console.error('Failed to load todos:', error);
-    }
-  }, [dateString]);
+  // Load initial data and setup window event listeners
+  useEffect(() => {
+    loadAvailableDates(); 
+    loadAppVersion();
+  }, [loadAvailableDates, loadAppVersion]);
 
-  // Save todos
-  const saveTodos = useCallback(async (todosToSave: Todo[]) => {
-    try {
-      await window.electronAPI.saveTodos(dateString, todosToSave);
-    } catch (error) {
-      console.error('Failed to save todos:', error);
-    }
-  }, [dateString]);
-
-  // Load available dates
-  const loadAvailableDates = useCallback(async () => {
-    try {
-      const dates = await window.electronAPI.getAllDates();
-      setAvailableDates(dates);
-    } catch (error) {
-      console.error('Failed to load dates:', error);
-    }
-  }, []);
-
-  // Load app version
-  const loadAppVersion = useCallback(async () => {
-    try {
-      const version = await (window.electronAPI as any).getAppVersion();
-      setAppVersion(version);
-    } catch (error) {
-      console.error('Failed to load app version:', error);
-    }
-  }, []);
-
+  // Load todos whenever the current date changes
   useEffect(() => {
     loadTodos();
-    loadAvailableDates();
-    loadAppVersion();
-  }, [loadTodos, loadAvailableDates, loadAppVersion]);
+    setSelectedIndex(0);
+  }, [currentDate, loadTodos, setSelectedIndex]);
 
+  // Reset selectedIndex and scroll to top when currentDate changes
+  useEffect(() => {
+    // Scroll to the top of the todos container when date changes
+    // Add a small delay to ensure framer-motion animations have completed
+    const scrollTimeout = setTimeout(() => {
+      if (todosContainerRef.current) {
+        todosContainerRef.current.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
+    }, 200); // Wait 200ms for animations to settle
+
+    return () => clearTimeout(scrollTimeout);
+  }, [currentDate]);
+
+  // Window visibility handlers
   useEffect(() => {
     const handleWindowShown = () => {
       setIsVisible(true);
@@ -86,250 +82,25 @@ const App: React.FC = () => {
       window.electronAPI.removeAllListeners('window-shown');
       window.electronAPI.removeAllListeners('window-hidden');
     };
-  }, []);
+  }, [setIsVisible, setMode, setSelectedIndex, setInput, setEditingId]);
 
+  // Focus input when in add/edit mode
   useEffect(() => {
     if (mode === 'add' || mode === 'edit') {
       inputRef.current?.focus();
     }
   }, [mode]);
 
-  // Auto-scroll selected todo into view
+  // Ensure selectedIndex stays within bounds
   useEffect(() => {
-    const displayTodos = getDisplayTodos();
-    if (mode === 'view' && displayTodos.length > 0 && todoRefs.current[selectedIndex]) {
-      const selectedElement = todoRefs.current[selectedIndex];
-      
-      if (selectedElement) {
-        // Use scrollIntoView with more specific options
-        selectedElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'nearest'
-        });
-      }
-    }
-  }, [selectedIndex, mode, todos.length]);
+    resetSelectedIndex();
+  }, [todos, resetSelectedIndex]);
 
-  // Update todoRefs array when todos change
-  useEffect(() => {
-    const displayTodos = getDisplayTodos();
-    todoRefs.current = todoRefs.current.slice(0, displayTodos.length);
-  }, [todos.length]);
-
-  // Ensure selectedIndex stays within bounds of displayTodos
-  useEffect(() => {
-    const displayTodos = getDisplayTodos();
-    if (displayTodos.length > 0 && selectedIndex >= displayTodos.length) {
-      setSelectedIndex(displayTodos.length - 1);
-    } else if (displayTodos.length === 0 && selectedIndex !== 0) {
-      setSelectedIndex(0);
-    }
-  }, [todos, selectedIndex]);
-
-  const addTodo = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-    
-    const newTodo: Todo = {
-      id: `${Date.now()}-${Math.random()}`,
-      text: text.trim(),
-      completed: false,
-      createdAt: dateString,
-    };
-    
-    const updatedTodos = [newTodo, ...todos]; // Add at the beginning
-    setTodos(updatedTodos);
-    await saveTodos(updatedTodos);
-    setInput('');
-    setMode('view');
-    setSelectedIndex(0); // Select the newly added todo at index 0
-  }, [todos, dateString, saveTodos]);
-
-  const toggleTodo = useCallback(async (id: string) => {
-    const updatedTodos = todos.map(todo =>
-      todo.id === id
-        ? {
-            ...todo,
-            completed: !todo.completed,
-            completedAt: !todo.completed ? new Date().toISOString() : undefined
-          }
-        : todo
-    );
-    setTodos(updatedTodos);
-    await saveTodos(updatedTodos);
-  }, [todos, saveTodos]);
-
-  const deleteTodo = useCallback(async (id: string) => {
-    const updatedTodos = todos.filter(todo => todo.id !== id);
-    setTodos(updatedTodos);
-    await saveTodos(updatedTodos);
-    setSelectedIndex(Math.max(0, Math.min(selectedIndex, updatedTodos.length - 1)));
-  }, [todos, saveTodos, selectedIndex]);
-
-  const checkForUpdates = useCallback(async () => {
-    try {
-      await (window.electronAPI as any).checkForUpdates();
-      console.log('Checking for updates...');
-    } catch (error) {
-      console.error('Failed to check for updates:', error);
-    }
-  }, []);
-
-  const editTodo = useCallback(async (id: string, newText: string) => {
-    if (!newText.trim()) {
-      await deleteTodo(id);
-      return;
-    }
-    
-    const updatedTodos = todos.map(todo =>
-      todo.id === id ? { ...todo, text: newText.trim() } : todo
-    );
-    setTodos(updatedTodos);
-    await saveTodos(updatedTodos);
-    setMode('view');
-    setEditingId(null);
-    setInput('');
-  }, [todos, saveTodos, deleteTodo]);
-
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!isVisible) return;
-
-    switch (e.key) {
-      case 'Escape':
-        if (mode === 'add' || mode === 'edit') {
-          setMode('view');
-          setInput('');
-          setEditingId(null);
-        } else {
-          window.electronAPI.hideWindow();
-        }
-        break;
-        
-      case 'Enter':
-        e.preventDefault();
-        if (mode === 'add') {
-          addTodo(input);
-        } else if (mode === 'edit' && editingId) {
-          editTodo(editingId, input);
-        } else if (mode === 'view' && todos.length > 0) {
-          toggleTodo(todos[selectedIndex].id);
-        }
-        break;
-        
-      case 'ArrowUp':
-        e.preventDefault();
-        if (mode === 'view') {
-          const displayTodos = getDisplayTodos();
-          if (displayTodos.length > 0) {
-            setSelectedIndex(prev => Math.max(0, prev - 1));
-          }
-        }
-        break;
-        
-      case 'ArrowDown':
-        e.preventDefault();
-        if (mode === 'view') {
-          const displayTodos = getDisplayTodos();
-          if (displayTodos.length > 0) {
-            setSelectedIndex(prev => Math.min(displayTodos.length - 1, prev + 1));
-          }
-        }
-        break;
-        
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (mode === 'view') {
-          setCurrentDate(prev => subDays(prev, 1));
-        }
-        break;
-        
-      case 'ArrowRight':
-        e.preventDefault();
-        if (mode === 'view') {
-          setCurrentDate(prev => addDays(prev, 1));
-        }
-        break;
-        
-      case ' ':
-        if (mode === 'view') {
-          const displayTodos = getDisplayTodos();
-          if (displayTodos.length > 0) {
-            e.preventDefault();
-            toggleTodo(displayTodos[selectedIndex].id);
-          }
-        }
-        // Don't prevent default in add/edit modes - allow typing spaces
-        break;
-        
-      case 'n':
-        if (mode === 'view') {
-          e.preventDefault();
-          setMode('add');
-          setInput('');
-        }
-        break;
-        
-      case 'e':
-        if (mode === 'view') {
-          const displayTodos = getDisplayTodos();
-          if (displayTodos.length > 0) {
-            e.preventDefault();
-            const todo = displayTodos[selectedIndex];
-            setMode('edit');
-            setEditingId(todo.id);
-            setInput(todo.text);
-          }
-        }
-        break;
-        
-      case 'Delete':
-      case 'Backspace':
-        if (mode === 'view' && (e.key === 'Delete' || (e.key === 'Backspace' && e.metaKey))) {
-          const displayTodos = getDisplayTodos();
-          if (displayTodos.length > 0) {
-            deleteTodo(displayTodos[selectedIndex].id);
-          }
-        }
-        break;
-        
-      case 't':
-        if (mode === 'view') {
-          e.preventDefault();
-          setCurrentDate(new Date());
-        }
-        break;
-        
-      case 'u':
-        if (mode === 'view') {
-          e.preventDefault();
-          checkForUpdates();
-        }
-        break;
-    }
-  }, [isVisible, mode, input, todos, selectedIndex, editingId, addTodo, editTodo, toggleTodo, deleteTodo]);
-
+  // Setup keyboard event listener
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-
-  const getDateDisplay = () => {
-    if (isToday(currentDate)) return 'Today';
-    if (isYesterday(currentDate)) return 'Yesterday';
-    return format(currentDate, 'EEEE, MMM d');
-  };
-
-  const getDisplayTodos = () => {
-    return todos.sort((a, b) => {
-      if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1;
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-  };
-
-  const displayTodos = getDisplayTodos();
-  const completedCount = todos.filter(t => t.completed).length;
 
   return (
     <div className="app" ref={containerRef}>
@@ -339,121 +110,37 @@ const App: React.FC = () => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
       >
-        <div className="header">
-          <div className="date-nav">
-            <span className="nav-hint">← →</span>
-            <h1 className="date-title">{getDateDisplay()}</h1>
-            <div className="stats">
-              {todos.length > 0 && (
-                <span className="todo-count">
-                  {completedCount}/{todos.length}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+        <TodoHeader />
 
         <div className="content">
           <AnimatePresence mode="wait">
             {mode === 'add' && (
-              <motion.div
+              <TodoInput
                 key="add-input"
-                className="input-container"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-              >
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Add a new todo..."
-                  className="todo-input"
-                />
-              </motion.div>
+                ref={inputRef}
+                mode="add"
+                value={input}
+                onChange={setInput}
+                placeholder="Add a new todo..."
+              />
             )}
 
             {mode === 'edit' && (
-              <motion.div
+              <TodoInput
                 key="edit-input"
-                className="input-container"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-              >
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  className="todo-input"
-                />
-              </motion.div>
+                ref={inputRef}
+                mode="edit"
+                value={input}
+                onChange={setInput}
+                placeholder=""
+              />
             )}
           </AnimatePresence>
 
-          <div className="todos-container" ref={containerRef}>
-            <AnimatePresence>
-              {displayTodos.map((todo, index) => (
-                <motion.div
-                  key={todo.id}
-                  ref={(el) => (todoRefs.current[index] = el)}
-                  className={`todo-item ${todo.completed ? 'completed' : ''} ${
-                    mode === 'view' && index === selectedIndex ? 'selected' : ''
-                  }`}
-                  initial={{ opacity: 0, x: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 5 }}
-                  transition={{ duration: 0.1, ease: "easeOut" }}
-                >
-                  <div className="todo-checkbox">
-                    {todo.completed ? '✓' : '○'}
-                  </div>
-                  <span className="todo-text">{todo.text}</span>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {displayTodos.length === 0 && (
-              <motion.div
-                className="empty-state"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-              >
-                <p>No todos for {getDateDisplay().toLowerCase()}</p>
-                <p className="hint">Press 'n' to add a new todo</p>
-              </motion.div>
-            )}
-          </div>
+          <TodoList ref={todosContainerRef} />
         </div>
 
-        <div className="footer">
-          <div className="shortcuts">
-            {mode === 'view' ? (
-              <>
-                <span><kbd>n</kbd> new</span>
-                <span><kbd>e</kbd> edit</span>
-                <span><kbd>⌫</kbd> delete</span>
-                <span><kbd>t</kbd> today</span>
-                <span><kbd>u</kbd> update</span>
-              </>
-            ) : (
-              <>
-                <span><kbd>Enter</kbd> save</span>
-                <span><kbd>Esc</kbd> cancel</span>
-              </>
-            )}
-          </div>
-          {appVersion && (
-            <div className="version-info">
-              <span>v{appVersion}</span>
-            </div>
-          )}
-        </div>
+        <TodoFooter />
       </motion.div>
     </div>
   );
