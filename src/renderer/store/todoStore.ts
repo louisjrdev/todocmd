@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
-import { Todo } from '../types';
+import { Todo, TodoStatus } from '../types';
 
 interface TodoState {
   // Core state
@@ -30,6 +30,7 @@ interface TodoState {
   // Todo operations
   addTodo: (text: string) => Promise<void>;
   toggleTodo: (id: string) => Promise<void>;
+  changeStatus: (id: string, status: TodoStatus) => Promise<void>;
   deleteTodo: (id: string) => Promise<void>;
   editTodo: (id: string, text: string) => Promise<void>;
   
@@ -103,7 +104,14 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const { currentDate, sortTodos } = get();
       const dateString = format(currentDate, 'yyyy-MM-dd');
       const todosForDate = await window.electronAPI.getTodos(dateString);
-      set({ todos: sortTodos(todosForDate) });
+      
+      // Add backward compatibility for status field
+      const todosWithStatus = todosForDate.map((todo: any) => ({
+        ...todo,
+        status: todo.status || (todo.completed ? 'completed' : 'pending')
+      }));
+      
+      set({ todos: sortTodos(todosWithStatus) });
     } catch (error) {
       console.error('Failed to load todos:', error);
     }
@@ -137,6 +145,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       id: `${Date.now()}-${Math.random()}`,
       text: text.trim(),
       completed: false,
+      status: 'pending',
       createdAt: dateString,
     };
     
@@ -151,68 +160,17 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   },
   
   toggleTodo: async (id: string) => {
-    const { todos, sortTodos, saveTodos, selectedIndex } = get();
+    const { todos, changeStatus } = get();
     
     // Find the todo being toggled
     const toggledTodo = todos.find(todo => todo.id === id);
     if (!toggledTodo) return;
     
-    const updatedTodos = todos.map(todo =>
-      todo.id === id
-        ? {
-            ...todo,
-            completed: !todo.completed,
-            completedAt: !todo.completed ? new Date().toISOString() : undefined
-          }
-        : todo
-    );
-    const sortedTodos = sortTodos(updatedTodos);
+    // Toggle between completed and pending (or restore original status)
+    const currentStatus = toggledTodo.status || (toggledTodo.completed ? 'completed' : 'pending');
+    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
     
-    let newSelectedIndex = selectedIndex;
-    
-    // If we just completed a todo (it was incomplete, now complete)
-    if (!toggledTodo.completed) {
-      // The completed todo moved to the bottom, so we want to select the next incomplete todo
-      // which is now at the same index position
-      if (selectedIndex < sortedTodos.length) {
-        // Find the first incomplete todo at or after the current position
-        const nextIncompleteIndex = sortedTodos.findIndex((todo, index) => 
-          index >= selectedIndex && !todo.completed
-        );
-        
-        if (nextIncompleteIndex !== -1) {
-          newSelectedIndex = nextIncompleteIndex;
-        } else {
-          // No more incomplete todos, go to the last incomplete one or first completed one
-          let lastIncompleteIndex = -1;
-          for (let i = sortedTodos.length - 1; i >= 0; i--) {
-            if (!sortedTodos[i].completed) {
-              lastIncompleteIndex = i;
-              break;
-            }
-          }
-          newSelectedIndex = lastIncompleteIndex !== -1 ? lastIncompleteIndex : 0;
-        }
-      }
-    } else {
-      // If we uncompleted a todo, it moved up in the list
-      // Try to find where it ended up and select the next todo after it
-      const uncompletedTodoNewIndex = sortedTodos.findIndex(todo => todo.id === id);
-      if (uncompletedTodoNewIndex !== -1 && uncompletedTodoNewIndex + 1 < sortedTodos.length) {
-        newSelectedIndex = uncompletedTodoNewIndex + 1;
-      } else {
-        newSelectedIndex = Math.min(selectedIndex, sortedTodos.length - 1);
-      }
-    }
-    
-    // Ensure the index is within bounds
-    newSelectedIndex = Math.max(0, Math.min(newSelectedIndex, sortedTodos.length - 1));
-    
-    set({ 
-      todos: sortedTodos,
-      selectedIndex: newSelectedIndex
-    });
-    await saveTodos(sortedTodos);
+    await changeStatus(id, newStatus);
   },
   
   deleteTodo: async (id: string) => {
@@ -225,6 +183,25 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       selectedIndex: newSelectedIndex
     });
     await saveTodos(updatedTodos);
+  },
+
+  changeStatus: async (id: string, newStatus: TodoStatus) => {
+    const { todos, sortTodos, saveTodos } = get();
+    
+    const updatedTodos = todos.map(todo =>
+      todo.id === id 
+        ? { 
+            ...todo, 
+            status: newStatus,
+            completed: newStatus === 'completed',
+            completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined
+          } 
+        : todo
+    );
+    
+    const sortedTodos = sortTodos(updatedTodos);
+    set({ todos: sortedTodos });
+    await saveTodos(sortedTodos);
   },
   
   editTodo: async (id: string, newText: string) => {

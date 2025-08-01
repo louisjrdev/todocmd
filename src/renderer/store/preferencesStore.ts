@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AppSettings, defaultSettings } from '../types/settings';
+import { AppSettings, defaultSettings, getPlatformSpecificDefaults } from '../types/settings';
 
 interface PreferencesStore {
   // State
@@ -62,37 +62,79 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     get().saveSettings();
   },
   
-  resetToDefaults: () => {
-    set({ settings: { ...defaultSettings } });
-    get().saveSettings();
+  resetToDefaults: async () => {
+    try {
+      // Get platform information
+      const platform = await (window.electronAPI as any).platform();
+      const platformDefaults = getPlatformSpecificDefaults(platform);
+      
+      // Create platform-specific defaults
+      const platformSpecificDefaults = {
+        ...defaultSettings,
+        keybindings: {
+          ...defaultSettings.keybindings,
+          navigation: {
+            ...defaultSettings.keybindings.navigation,
+            ...platformDefaults,
+          },
+        },
+      };
+      
+      set({ settings: platformSpecificDefaults });
+      get().saveSettings();
+    } catch (error) {
+      console.error('Failed to reset to defaults:', error);
+      // Fallback to regular defaults
+      set({ settings: { ...defaultSettings } });
+      get().saveSettings();
+    }
   },
   
   loadSettings: async () => {
     try {
+      // Get platform information
+      const platform = await (window.electronAPI as any).platform();
+      const platformDefaults = getPlatformSpecificDefaults(platform);
+      
+      // Create platform-specific defaults
+      const platformSpecificDefaults = {
+        ...defaultSettings,
+        keybindings: {
+          ...defaultSettings.keybindings,
+          navigation: {
+            ...defaultSettings.keybindings.navigation,
+            ...platformDefaults,
+          },
+        },
+      };
+      
       const loadedSettings = await (window.electronAPI as any).getSettings();
       if (loadedSettings) {
-        // Merge with defaults to ensure all properties exist
+        // Merge with platform-specific defaults to ensure all properties exist
         const mergedSettings = {
-          ...defaultSettings,
+          ...platformSpecificDefaults,
           ...loadedSettings,
           keybindings: {
-            ...defaultSettings.keybindings,
+            ...platformSpecificDefaults.keybindings,
             ...loadedSettings.keybindings,
             global: {
-              ...defaultSettings.keybindings.global,
+              ...platformSpecificDefaults.keybindings.global,
               ...loadedSettings.keybindings?.global,
             },
             navigation: {
-              ...defaultSettings.keybindings.navigation,
+              ...platformSpecificDefaults.keybindings.navigation,
               ...loadedSettings.keybindings?.navigation,
             },
             system: {
-              ...defaultSettings.keybindings.system,
+              ...platformSpecificDefaults.keybindings.system,
               ...loadedSettings.keybindings?.system,
             },
           },
         };
         set({ settings: mergedSettings });
+      } else {
+        // No saved settings, use platform-specific defaults
+        set({ settings: platformSpecificDefaults });
       }
     } catch (error) {
       console.error('Failed to load settings:', error);

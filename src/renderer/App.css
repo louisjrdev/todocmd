@@ -133,12 +133,81 @@ body {
   border-color: rgba(0, 122, 255, 0.3);
 }
 
+/* Selected state for different statuses */
+.todo-item.important.selected {
+  background: rgba(255, 59, 48, 0.15);
+  border-color: rgba(255, 59, 48, 0.6);
+}
+
+.todo-item.in-progress.selected {
+  background: rgba(0, 122, 255, 0.15);
+  border-color: rgba(0, 122, 255, 0.6);
+}
+
+.todo-item.on-hold.selected {
+  background: rgba(255, 149, 0, 0.15);
+  border-color: rgba(255, 149, 0, 0.6);
+}
+
+.todo-item.completed.selected {
+  background: rgba(52, 199, 89, 0.15);
+  border-color: rgba(52, 199, 89, 0.6);
+}
+
+.todo-item.cancelled.selected {
+  background: rgba(142, 142, 147, 0.15);
+  border-color: rgba(142, 142, 147, 0.6);
+}
+
+.todo-item.pending.selected {
+  background: rgba(0, 122, 255, 0.1);
+  border-color: rgba(0, 122, 255, 0.3);
+}
+
 .todo-item.completed {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .todo-item.completed .todo-text {
   text-decoration: line-through;
+}
+
+.todo-item.important {
+  border-color: rgba(255, 59, 48, 0.4);
+  background: rgba(255, 59, 48, 0.05);
+}
+
+.todo-item.important .todo-text {
+  font-weight: 600;
+}
+
+.todo-item.in-progress {
+  border-color: rgba(0, 122, 255, 0.4);
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.todo-item.in-progress .todo-text {
+  font-style: italic;
+}
+
+.todo-item.on-hold {
+  border-color: rgba(255, 149, 0, 0.4);
+  background: rgba(255, 149, 0, 0.05);
+}
+
+.todo-item.on-hold .todo-text {
+  opacity: 0.8;
+}
+
+.todo-item.cancelled {
+  opacity: 0.6;
+  border-color: rgba(142, 142, 147, 0.4);
+  background: rgba(142, 142, 147, 0.05);
+}
+
+.todo-item.cancelled .todo-text {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 .todo-checkbox {
@@ -154,8 +223,29 @@ body {
   flex-shrink: 0;
 }
 
-.todo-item.completed .todo-checkbox {
+/* Status-specific icon colors */
+.status-icon.completed {
   color: #34C759;
+}
+
+.status-icon.important {
+  color: #FF3B30;
+}
+
+.status-icon.in-progress {
+  color: #007AFF;
+}
+
+.status-icon.on-hold {
+  color: #FF9500;
+}
+
+.status-icon.cancelled {
+  color: #8E8E93;
+}
+
+.status-icon.pending {
+  color: rgba(0, 0, 0, 0.4);
 }
 
 .todo-text {
@@ -718,6 +808,87 @@ kbd {
   .todo-item.selected {
     background: rgba(10, 132, 255, 0.2);
     border-color: rgba(10, 132, 255, 0.4);
+  }
+
+  /* Dark mode status styles */
+  .todo-item.important {
+    border-color: rgba(255, 69, 58, 0.5);
+    background: rgba(255, 69, 58, 0.1);
+  }
+
+  .todo-item.in-progress {
+    border-color: rgba(10, 132, 255, 0.5);
+    background: rgba(10, 132, 255, 0.1);
+  }
+
+  .todo-item.on-hold {
+    border-color: rgba(255, 159, 10, 0.5);
+    background: rgba(255, 159, 10, 0.1);
+  }
+
+  .todo-item.cancelled {
+    border-color: rgba(152, 152, 157, 0.5);
+    background: rgba(152, 152, 157, 0.1);
+  }
+
+  .todo-item.completed {
+    opacity: 0.6;
+  }
+
+  /* Dark mode selected states for different statuses */
+  .todo-item.important.selected {
+    background: rgba(255, 69, 58, 0.25);
+    border-color: rgba(255, 69, 58, 0.7);
+  }
+
+  .todo-item.in-progress.selected {
+    background: rgba(10, 132, 255, 0.25);
+    border-color: rgba(10, 132, 255, 0.7);
+  }
+
+  .todo-item.on-hold.selected {
+    background: rgba(255, 159, 10, 0.25);
+    border-color: rgba(255, 159, 10, 0.7);
+  }
+
+  .todo-item.completed.selected {
+    background: rgba(48, 209, 88, 0.25);
+    border-color: rgba(48, 209, 88, 0.7);
+  }
+
+  .todo-item.cancelled.selected {
+    background: rgba(152, 152, 157, 0.25);
+    border-color: rgba(152, 152, 157, 0.7);
+  }
+
+  .todo-item.pending.selected {
+    background: rgba(10, 132, 255, 0.2);
+    border-color: rgba(10, 132, 255, 0.4);
+  }
+  
+  /* Dark mode status icon colors */
+  .status-icon.completed {
+    color: #30D158;
+  }
+
+  .status-icon.important {
+    color: #FF453A;
+  }
+
+  .status-icon.in-progress {
+    color: #0A84FF;
+  }
+
+  .status-icon.on-hold {
+    color: #FF9F0A;
+  }
+
+  .status-icon.cancelled {
+    color: #98989D;
+  }
+
+  .status-icon.pending {
+    color: rgba(255, 255, 255, 0.4);
   }
   
   .todo-text {

@@ -15,6 +15,7 @@ export const useKeyboardNavigation = () => {
     addTodo,
     editTodo,
     toggleTodo,
+    changeStatus,
     deleteTodo,
     setMode,
     setInput,
@@ -160,6 +161,42 @@ export const useKeyboardNavigation = () => {
             e.preventDefault();
             checkForUpdates();
           }
+          // Status shortcuts with toggle functionality
+          else if (matchesShortcut(e, keybindings.navigation.markImportant) && todos.length > 0) {
+            e.preventDefault();
+            const currentTodo = todos[selectedIndex];
+            const currentStatus = currentTodo.status || (currentTodo.completed ? 'completed' : 'pending');
+            const newStatus = currentStatus === 'important' ? 'pending' : 'important';
+            changeStatus(currentTodo.id, newStatus);
+          }
+          else if (matchesShortcut(e, keybindings.navigation.markInProgress) && todos.length > 0) {
+            e.preventDefault();
+            const currentTodo = todos[selectedIndex];
+            const currentStatus = currentTodo.status || (currentTodo.completed ? 'completed' : 'pending');
+            const newStatus = currentStatus === 'in-progress' ? 'pending' : 'in-progress';
+            changeStatus(currentTodo.id, newStatus);
+          }
+          else if (matchesShortcut(e, keybindings.navigation.markOnHold) && todos.length > 0) {
+            e.preventDefault();
+            const currentTodo = todos[selectedIndex];
+            const currentStatus = currentTodo.status || (currentTodo.completed ? 'completed' : 'pending');
+            const newStatus = currentStatus === 'on-hold' ? 'pending' : 'on-hold';
+            changeStatus(currentTodo.id, newStatus);
+          }
+          else if (matchesShortcut(e, keybindings.navigation.markCompleted) && todos.length > 0) {
+            e.preventDefault();
+            const currentTodo = todos[selectedIndex];
+            const currentStatus = currentTodo.status || (currentTodo.completed ? 'completed' : 'pending');
+            const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+            changeStatus(currentTodo.id, newStatus);
+          }
+          else if (matchesShortcut(e, keybindings.navigation.markCancelled) && todos.length > 0) {
+            e.preventDefault();
+            const currentTodo = todos[selectedIndex];
+            const currentStatus = currentTodo.status || (currentTodo.completed ? 'completed' : 'pending');
+            const newStatus = currentStatus === 'cancelled' ? 'pending' : 'cancelled';
+            changeStatus(currentTodo.id, newStatus);
+          }
           // Preferences (Ctrl+, or Cmd+,)
           else if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
@@ -170,7 +207,7 @@ export const useKeyboardNavigation = () => {
     }
   }, [
     isVisible, mode, input, todos, selectedIndex, editingId, currentDate, settings.keybindings, preferencesOpen,
-    addTodo, editTodo, toggleTodo, deleteTodo,
+    addTodo, editTodo, toggleTodo, changeStatus, deleteTodo,
     setMode, setInput, setEditingId, setSelectedIndex,
     setCurrentDate, checkForUpdates, openPreferences, closePreferences
   ]);

@@ -294,6 +294,35 @@ const KeybindingsPanel: React.FC = () => {
       </div>
       
       <div className="setting-section">
+        <h4>Todo Status</h4>
+        <ShortcutInput 
+          label="Mark Important"
+          path="keybindings.navigation.markImportant"
+          defaultValue={platform === 'darwin' ? 'Cmd+I' : 'Ctrl+I'}
+        />
+        <ShortcutInput 
+          label="Mark In Progress"
+          path="keybindings.navigation.markInProgress"
+          defaultValue={platform === 'darwin' ? 'Cmd+P' : 'Ctrl+P'}
+        />
+        <ShortcutInput 
+          label="Mark On Hold"
+          path="keybindings.navigation.markOnHold"
+          defaultValue={platform === 'darwin' ? 'Cmd+H' : 'Ctrl+H'}
+        />
+        <ShortcutInput 
+          label="Mark Completed"
+          path="keybindings.navigation.markCompleted"
+          defaultValue={platform === 'darwin' ? 'Cmd+C' : 'Ctrl+C'}
+        />
+        <ShortcutInput 
+          label="Mark Cancelled"
+          path="keybindings.navigation.markCancelled"
+          defaultValue={platform === 'darwin' ? 'Cmd+X' : 'Ctrl+X'}
+        />
+      </div>
+      
+      <div className="setting-section">
         <h4>System</h4>
         <ShortcutInput 
           label="Preferences"

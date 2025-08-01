@@ -7,6 +7,7 @@ interface Todo {
   id: string;
   text: string;
   completed: boolean;
+  status?: string; // Optional for backward compatibility
   createdAt: string;
   completedAt?: string;
 }
@@ -242,7 +243,12 @@ function rolloverTodos(): void {
     const lastTodos = todos[lastAccessed] || [];
     
     // Find incomplete todos from the last accessed day
-    const incompleteTodos = lastTodos.filter((todo: Todo) => !todo.completed);
+    // Consider todos as incomplete if they're not completed or cancelled
+    const incompleteTodos = lastTodos.filter((todo: Todo) => {
+      // Check new status field first, fallback to completed field for backward compatibility
+      const status = todo.status || (todo.completed ? 'completed' : 'pending');
+      return status !== 'completed' && status !== 'cancelled';
+    });
     
     if (incompleteTodos.length > 0) {
       // Move incomplete todos to today
