@@ -240,27 +240,39 @@ function rolloverTodos(): void {
   
   if (lastAccessed !== today) {
     const todos = store.get('todos');
-    const lastTodos = todos[lastAccessed] || [];
     
-    // Find incomplete todos from the last accessed day
-    // Consider todos as incomplete if they're not completed or cancelled
-    const incompleteTodos = lastTodos.filter((todo: Todo) => {
-      // Check new status field first, fallback to completed field for backward compatibility
-      const status = todo.status || (todo.completed ? 'completed' : 'pending');
-      return status !== 'completed' && status !== 'cancelled';
-    });
+    // Find the most recent date with todos (excluding today)
+    const allDates = Object.keys(todos)
+      .filter(date => date !== today && todos[date].length > 0)
+      .sort()
+      .reverse(); // Most recent first
     
-    if (incompleteTodos.length > 0) {
-      // Move incomplete todos to today
-      const todayTodos = todos[today] || [];
-      const updatedIncompleteTodos = incompleteTodos.map((todo: Todo) => ({
-        ...todo,
-        id: `${Date.now()}-${Math.random()}`, // Generate new ID
-        createdAt: today
-      }));
+    if (allDates.length > 0) {
+      const mostRecentDate = allDates[0];
+      const recentTodos = todos[mostRecentDate] || [];
       
-      todos[today] = [...todayTodos, ...updatedIncompleteTodos];
-      store.set('todos', todos);
+      // Find incomplete todos from the most recent day with todos
+      // Consider todos as incomplete if they're not completed or cancelled
+      const incompleteTodos = recentTodos.filter((todo: Todo) => {
+        // Check new status field first, fallback to completed field for backward compatibility
+        const status = todo.status || (todo.completed ? 'completed' : 'pending');
+        return status !== 'completed' && status !== 'cancelled';
+      });
+      
+      if (incompleteTodos.length > 0) {
+        // Move incomplete todos to today
+        const todayTodos = todos[today] || [];
+        const updatedIncompleteTodos = incompleteTodos.map((todo: Todo) => ({
+          ...todo,
+          id: `${Date.now()}-${Math.random()}`, // Generate new ID
+          createdAt: today
+        }));
+        
+        todos[today] = [...todayTodos, ...updatedIncompleteTodos];
+        store.set('todos', todos);
+        
+        console.log(`Rolled over ${incompleteTodos.length} incomplete todos from ${mostRecentDate} to ${today}`);
+      }
     }
     
     store.set('lastAccessed', today);

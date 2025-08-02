@@ -22,6 +22,7 @@ const App: React.FC = () => {
     loadAvailableDates,
     loadAppVersion,
     setIsVisible,
+    setCurrentDate,
     setMode,
     setSelectedIndex,
     setInput,
@@ -87,6 +88,8 @@ const App: React.FC = () => {
       setSelectedIndex(0);
       setInput('');
       setEditingId(null);
+      // Always set current date to today when window is shown
+      setCurrentDate(new Date());
     };
 
     const handleWindowHidden = () => {
