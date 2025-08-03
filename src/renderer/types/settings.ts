@@ -20,6 +20,7 @@ export interface AppSettings {
       markCancelled: string;
     };
     system: {
+      preferences: string;
       toggleDevTools: string;
     };
   };
@@ -59,6 +60,7 @@ export const defaultSettings: AppSettings = {
       markCancelled: "Ctrl+X",
     },
     system: {
+      preferences: "Cmd+,", // Will be updated by platform-specific defaults
       toggleDevTools: "F12",
     },
   },
@@ -77,5 +79,6 @@ export const getPlatformSpecificDefaults = (platform: string) => {
     markOnHold: `${modifierKey}+H`,
     markCompleted: `${modifierKey}+C`,
     markCancelled: `${modifierKey}+X`,
+    preferences: `${modifierKey}+,`,
   };
 };

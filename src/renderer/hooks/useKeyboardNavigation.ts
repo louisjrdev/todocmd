@@ -105,20 +105,6 @@ export const useKeyboardNavigation = () => {
         }
         break;
         
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (mode === 'view') {
-          setCurrentDate(subDays(currentDate, 1));
-        }
-        break;
-        
-      case 'ArrowRight':
-        e.preventDefault();
-        if (mode === 'view') {
-          setCurrentDate(addDays(currentDate, 1));
-        }
-        break;
-        
       case ' ':
         if (mode === 'view' && todos.length > 0) {
           e.preventDefault();
@@ -161,6 +147,20 @@ export const useKeyboardNavigation = () => {
             e.preventDefault();
             checkForUpdates();
           }
+          // Previous day
+          else if (matchesShortcut(e, keybindings.navigation.previousDay)) {
+            e.preventDefault();
+            if (mode === 'view') {
+              setCurrentDate(subDays(currentDate, 1));
+            }
+          }
+          // Next day
+          else if (matchesShortcut(e, keybindings.navigation.nextDay)) {
+            e.preventDefault();
+            if (mode === 'view') {
+              setCurrentDate(addDays(currentDate, 1));
+            }
+          }
           // Status shortcuts with toggle functionality
           else if (matchesShortcut(e, keybindings.navigation.markImportant) && todos.length > 0) {
             e.preventDefault();
@@ -197,8 +197,8 @@ export const useKeyboardNavigation = () => {
             const newStatus = currentStatus === 'cancelled' ? 'pending' : 'cancelled';
             changeStatus(currentTodo.id, newStatus);
           }
-          // Preferences (Ctrl+, or Cmd+,)
-          else if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
+          // Preferences
+          else if (matchesShortcut(e, settings.keybindings.system.preferences)) {
             e.preventDefault();
             openPreferences();
           }

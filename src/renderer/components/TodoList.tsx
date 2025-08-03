@@ -59,7 +59,6 @@ const TodoList = forwardRef<HTMLDivElement>((props, ref) => {
 
     return (
       <div className="todos-container" ref={ref}>
-        <AnimatePresence>
           {todos.map((todo, index) => (
             <TodoItem
               key={todo.id}
@@ -69,7 +68,6 @@ const TodoList = forwardRef<HTMLDivElement>((props, ref) => {
               mode={mode}
             />
           ))}
-        </AnimatePresence>
 
         {todos.length === 0 && (
           <motion.div

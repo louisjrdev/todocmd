@@ -39,6 +39,10 @@ interface TodoState {
   loadAvailableDates: () => Promise<void>;
   loadAppVersion: () => Promise<void>;
   
+  // Rollover handling
+  handleTodosRolledOver: (data: { count: number, fromDate: string, toDate: string }) => Promise<void>;
+  setupRolloverListener: () => void;
+  
   // Utility functions
   sortTodos: (todosToSort: Todo[]) => Todo[];
   saveTodos: (todosToSave: Todo[]) => Promise<void>;
@@ -247,6 +251,28 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     }
   },
   
+  // Rollover handling
+  handleTodosRolledOver: async (data: { count: number, fromDate: string, toDate: string }) => {
+    console.log(`Todos rolled over: ${data.count} todos from ${data.fromDate} to ${data.toDate}`);
+    
+    // If we're currently viewing today's date, reload todos to show the rolled over items
+    const { currentDate, loadTodos } = get();
+    const currentDateString = format(currentDate, 'yyyy-MM-dd');
+    const today = format(new Date(), 'yyyy-MM-dd');
+    
+    if (currentDateString === today) {
+      await loadTodos();
+      console.log('Reloaded todos after rollover');
+    }
+  },
+  
+  setupRolloverListener: () => {
+    const { handleTodosRolledOver } = get();
+    window.electronAPI.onTodosRolledOver((event: any, data: { count: number, fromDate: string, toDate: string }) => {
+      handleTodosRolledOver(data);
+    });
+  },
+
   // Reset functions
   resetToViewMode: () => {
     set({

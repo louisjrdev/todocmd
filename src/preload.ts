@@ -15,6 +15,8 @@ const electronAPI = {
   hideWindow: (): Promise<void> => ipcRenderer.invoke('hide-window'),
   onWindowShown: (callback: () => void) => ipcRenderer.on('window-shown', callback),
   onWindowHidden: (callback: () => void) => ipcRenderer.on('window-hidden', callback),
+  onTodosRolledOver: (callback: (event: any, data: { count: number, fromDate: string, toDate: string }) => void) => 
+    ipcRenderer.on('todos-rolled-over', callback),
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
   // Auto-updater APIs
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),

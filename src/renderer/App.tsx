@@ -29,6 +29,7 @@ const App: React.FC = () => {
     setEditingId,
     resetSelectedIndex,
     setUpdateStatus,
+    setupRolloverListener,
   } = useTodoStore();
   
   const { openPreferences, loadSettings } = usePreferencesStore();
@@ -44,6 +45,7 @@ const App: React.FC = () => {
     loadAvailableDates(); 
     loadAppVersion();
     loadSettings(); // Load preferences settings on startup
+    setupRolloverListener(); // Setup listener for automatic todo rollover
     
     // Set up the global update status callback
     (window as any).updateStatusCallback = (status: 'checking' | 'available' | 'not-available' | 'error') => {
@@ -56,7 +58,7 @@ const App: React.FC = () => {
         }, status === 'checking' ? 0 : 3000); // Don't auto-clear checking, clear others after 3s
       }
     };
-  }, [loadAvailableDates, loadAppVersion, loadSettings, setUpdateStatus]);
+  }, [loadAvailableDates, loadAppVersion, loadSettings, setupRolloverListener, setUpdateStatus]);
 
   // Load todos whenever the current date changes
   useEffect(() => {

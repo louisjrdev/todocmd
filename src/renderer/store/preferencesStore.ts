@@ -77,6 +77,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
             ...defaultSettings.keybindings.navigation,
             ...platformDefaults,
           },
+          system: {
+            ...defaultSettings.keybindings.system,
+            preferences: platformDefaults.preferences,
+          },
         },
       };
       
@@ -104,6 +108,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
           navigation: {
             ...defaultSettings.keybindings.navigation,
             ...platformDefaults,
+          },
+          system: {
+            ...defaultSettings.keybindings.system,
+            preferences: platformDefaults.preferences,
           },
         },
       };

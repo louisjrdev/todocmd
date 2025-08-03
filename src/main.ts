@@ -272,6 +272,15 @@ function rolloverTodos(): void {
         store.set('todos', todos);
         
         console.log(`Rolled over ${incompleteTodos.length} incomplete todos from ${mostRecentDate} to ${today}`);
+        
+        // Notify renderer of rollover
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('todos-rolled-over', {
+            count: incompleteTodos.length,
+            fromDate: mostRecentDate,
+            toDate: today
+          });
+        }
       }
     }
     
@@ -402,6 +411,11 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   rolloverTodos();
+
+  // Set up periodic rollover check (every minute)
+  setInterval(() => {
+    rolloverTodos();
+  }, 60000); // 60000ms = 1 minute
 
   // Configure auto-updater
   if (process.env.NODE_ENV !== 'development') {
