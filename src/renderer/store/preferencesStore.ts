@@ -12,7 +12,7 @@ interface PreferencesStore {
   openPreferences: () => void;
   closePreferences: () => void;
   setActiveTab: (tab: string) => void;
-  updateSetting: (path: string, value: string) => void;
+  updateSetting: (path: string, value: string | boolean) => void;
   resetToDefaults: () => void;
   loadSettings: () => Promise<void>;
   saveSettings: () => Promise<void>;
@@ -137,6 +137,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
               ...platformSpecificDefaults.keybindings.system,
               ...loadedSettings.keybindings?.system,
             },
+          },
+          behavior: {
+            ...platformSpecificDefaults.behavior,
+            ...loadedSettings.behavior,
           },
         };
         set({ settings: mergedSettings });

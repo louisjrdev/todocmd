@@ -86,7 +86,7 @@ const PreferencesModal: React.FC = () => {
               <div className="preferences-panel">
                 {activeTab === 'keybindings' && <KeybindingsPanel />}
                 {activeTab === 'appearance' && <ComingSoonPanel title="Appearance" />}
-                {activeTab === 'behavior' && <ComingSoonPanel title="Behavior" />}
+                {activeTab === 'behavior' && <BehaviorPanel />}
               </div>
             </div>
           </motion.div>
@@ -291,6 +291,16 @@ const KeybindingsPanel: React.FC = () => {
           path="keybindings.navigation.nextDay"
           defaultValue="ArrowRight"
         />
+        <ShortcutInput 
+          label="Move Todo Up"
+          path="keybindings.navigation.moveTodoUp"
+          defaultValue={platform === 'darwin' ? 'Cmd+ArrowUp' : 'Ctrl+ArrowUp'}
+        />
+        <ShortcutInput 
+          label="Move Todo Down"
+          path="keybindings.navigation.moveTodoDown"
+          defaultValue={platform === 'darwin' ? 'Cmd+ArrowDown' : 'Ctrl+ArrowDown'}
+        />
       </div>
       
       <div className="setting-section">
@@ -344,6 +354,38 @@ const KeybindingsPanel: React.FC = () => {
         >
           Reset to Defaults
         </button>
+      </div>
+    </div>
+  );
+};
+
+const BehaviorPanel: React.FC = () => {
+  const { settings, updateSetting } = usePreferencesStore();
+
+  return (
+    <div className="panel-content">
+      <h3>Behavior</h3>
+      <p className="panel-description">
+        Control how TodoCmd handles unfinished todos between days.
+      </p>
+
+      <div className="setting-section">
+        <h4>Todo Management</h4>
+        <div className="setting-item">
+          <div className="setting-item-copy">
+            <label htmlFor="enable-todo-rollover">Enable todo rollover</label>
+            <p className="setting-item-description">
+              Carry incomplete todos into today on the first launch each day.
+            </p>
+          </div>
+          <input
+            id="enable-todo-rollover"
+            className="setting-checkbox"
+            type="checkbox"
+            checked={settings.behavior.enableTodoRollover}
+            onChange={(e) => updateSetting('behavior.enableTodoRollover', e.target.checked)}
+          />
+        </div>
       </div>
     </div>
   );
