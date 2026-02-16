@@ -17,6 +17,7 @@ export const useKeyboardNavigation = () => {
     toggleTodo,
     changeStatus,
     deleteTodo,
+    moveTodo,
     setMode,
     setInput,
     setEditingId,
@@ -94,14 +95,26 @@ export const useKeyboardNavigation = () => {
       case 'ArrowUp':
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
-          setSelectedIndex(Math.max(0, selectedIndex - 1));
+          // Ctrl+ArrowUp: Move selected item up
+          if (e.ctrlKey && selectedIndex > 0) {
+            moveTodo(selectedIndex, selectedIndex - 1);
+          } else {
+            // Regular ArrowUp: Navigate to previous item
+            setSelectedIndex(Math.max(0, selectedIndex - 1));
+          }
         }
         break;
         
       case 'ArrowDown':
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
-          setSelectedIndex(Math.min(todos.length - 1, selectedIndex + 1));
+          // Ctrl+ArrowDown: Move selected item down
+          if (e.ctrlKey && selectedIndex < todos.length - 1) {
+            moveTodo(selectedIndex, selectedIndex + 1);
+          } else {
+            // Regular ArrowDown: Navigate to next item
+            setSelectedIndex(Math.min(todos.length - 1, selectedIndex + 1));
+          }
         }
         break;
         
@@ -207,7 +220,7 @@ export const useKeyboardNavigation = () => {
     }
   }, [
     isVisible, mode, input, todos, selectedIndex, editingId, currentDate, settings.keybindings, preferencesOpen,
-    addTodo, editTodo, toggleTodo, changeStatus, deleteTodo,
+    addTodo, editTodo, toggleTodo, changeStatus, deleteTodo, moveTodo,
     setMode, setInput, setEditingId, setSelectedIndex,
     setCurrentDate, checkForUpdates, openPreferences, closePreferences
   ]);

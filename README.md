@@ -43,6 +43,7 @@ A beautiful, keyboard-driven desktop todo application with command palette inter
 
 ### In-App Navigation
 - `↑/↓` - Navigate between todos
+- `Ctrl+↑/↓` - Re-order todos (move selected todo up/down)
 - `←/→` - Switch between days
 - `Enter` - Add new todo (when input is focused)
 - `Space` - Toggle todo completion
