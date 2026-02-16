@@ -64,6 +64,8 @@ export const useKeyboardNavigation = () => {
 
     // Get keybindings from settings
     const keybindings = settings.keybindings;
+    const moveUpShortcut = keybindings.navigation.moveTodoUp;
+    const moveDownShortcut = keybindings.navigation.moveTodoDown;
 
     switch (e.key) {
       case 'Escape':
@@ -95,8 +97,8 @@ export const useKeyboardNavigation = () => {
       case 'ArrowUp':
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
-          // Ctrl+ArrowUp: Move selected item up
-          if (e.ctrlKey && selectedIndex > 0) {
+          // Move selected item up (configurable shortcut)
+          if (matchesShortcut(e, moveUpShortcut) && selectedIndex > 0) {
             moveTodo(selectedIndex, selectedIndex - 1);
           } else {
             // Regular ArrowUp: Navigate to previous item
@@ -108,8 +110,8 @@ export const useKeyboardNavigation = () => {
       case 'ArrowDown':
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
-          // Ctrl+ArrowDown: Move selected item down
-          if (e.ctrlKey && selectedIndex < todos.length - 1) {
+          // Move selected item down (configurable shortcut)
+          if (matchesShortcut(e, moveDownShortcut) && selectedIndex < todos.length - 1) {
             moveTodo(selectedIndex, selectedIndex + 1);
           } else {
             // Regular ArrowDown: Navigate to next item
@@ -173,6 +175,16 @@ export const useKeyboardNavigation = () => {
             if (mode === 'view') {
               setCurrentDate(addDays(currentDate, 1));
             }
+          }
+          // Move todo up (for remaps that are not ArrowUp)
+          else if (matchesShortcut(e, moveUpShortcut) && todos.length > 0 && selectedIndex > 0) {
+            e.preventDefault();
+            moveTodo(selectedIndex, selectedIndex - 1);
+          }
+          // Move todo down (for remaps that are not ArrowDown)
+          else if (matchesShortcut(e, moveDownShortcut) && todos.length > 0 && selectedIndex < todos.length - 1) {
+            e.preventDefault();
+            moveTodo(selectedIndex, selectedIndex + 1);
           }
           // Status shortcuts with toggle functionality
           else if (matchesShortcut(e, keybindings.navigation.markImportant) && todos.length > 0) {

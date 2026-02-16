@@ -45,6 +45,9 @@ const settingsStore = new Store({
         preferences: process.platform === 'darwin' ? 'Cmd+,' : 'Ctrl+,',
         devTools: process.platform === 'darwin' ? 'Cmd+Option+I' : 'F12'
       }
+    },
+    behavior: {
+      enableTodoRollover: true
     }
   }
 });
@@ -237,8 +240,15 @@ function createTray(): void {
 function rolloverTodos(): void {
   const today = new Date().toISOString().split('T')[0];
   const lastAccessed = store.get('lastAccessed');
+  const rolloverSetting = settingsStore.get('behavior.enableTodoRollover');
+  const isRolloverEnabled = rolloverSetting !== false;
   
   if (lastAccessed !== today) {
+    if (!isRolloverEnabled) {
+      store.set('lastAccessed', today);
+      return;
+    }
+
     const todos = store.get('todos');
     
     // Find the most recent date with todos (excluding today)

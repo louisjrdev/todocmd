@@ -606,6 +606,26 @@ body {
   font-weight: 500;
 }
 
+.setting-item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setting-item-description {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  line-height: 1.4;
+}
+
+.setting-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
 .shortcut-input {
   display: flex;
   align-items: center;
@@ -995,6 +1015,10 @@ kbd {
 
   .setting-item label {
     color: rgba(255, 255, 255, 0.8);
+  }
+
+  .setting-item-description {
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .shortcut-input {

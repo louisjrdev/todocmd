@@ -12,6 +12,8 @@ export interface AppSettings {
       checkUpdates: string;
       previousDay: string;
       nextDay: string;
+      moveTodoUp: string;
+      moveTodoDown: string;
       // Todo status shortcuts
       markImportant: string;
       markInProgress: string;
@@ -28,7 +30,7 @@ export interface AppSettings {
     // Future settings
   };
   behavior: {
-    // Future settings
+    enableTodoRollover: boolean;
   };
 }
 
@@ -52,6 +54,8 @@ export const defaultSettings: AppSettings = {
       checkUpdates: "u",
       previousDay: "ArrowLeft",
       nextDay: "ArrowRight",
+      moveTodoUp: "Ctrl+ArrowUp",
+      moveTodoDown: "Ctrl+ArrowDown",
       // Todo status shortcuts - will be updated to platform-specific by preferences store
       markImportant: "Ctrl+I",
       markInProgress: "Ctrl+P",
@@ -65,7 +69,9 @@ export const defaultSettings: AppSettings = {
     },
   },
   appearance: {},
-  behavior: {},
+  behavior: {
+    enableTodoRollover: true,
+  },
 };
 
 // Helper function to get platform-specific defaults
@@ -79,6 +85,8 @@ export const getPlatformSpecificDefaults = (platform: string) => {
     markOnHold: `${modifierKey}+H`,
     markCompleted: `${modifierKey}+C`,
     markCancelled: `${modifierKey}+X`,
+    moveTodoUp: `${modifierKey}+ArrowUp`,
+    moveTodoDown: `${modifierKey}+ArrowDown`,
     preferences: `${modifierKey}+,`,
   };
 };
