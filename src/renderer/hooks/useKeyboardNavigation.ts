@@ -96,7 +96,7 @@ export const useKeyboardNavigation = () => {
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
           // Ctrl+ArrowUp: Move selected item up
-          if (e.ctrlKey && selectedIndex > 0) {
+          if (e.ctrlKey && selectedIndex >= 0 && selectedIndex > 0) {
             moveTodo(selectedIndex, selectedIndex - 1);
           } else {
             // Regular ArrowUp: Navigate to previous item
@@ -109,7 +109,7 @@ export const useKeyboardNavigation = () => {
         e.preventDefault();
         if (mode === 'view' && todos.length > 0) {
           // Ctrl+ArrowDown: Move selected item down
-          if (e.ctrlKey && selectedIndex < todos.length - 1) {
+          if (e.ctrlKey && selectedIndex >= 0 && selectedIndex < todos.length - 1) {
             moveTodo(selectedIndex, selectedIndex + 1);
           } else {
             // Regular ArrowDown: Navigate to next item
