@@ -33,6 +33,7 @@ interface TodoState {
   changeStatus: (id: string, status: TodoStatus) => Promise<void>;
   deleteTodo: (id: string) => Promise<void>;
   editTodo: (id: string, text: string) => Promise<void>;
+  moveTodo: (fromIndex: number, toIndex: number) => Promise<void>;
   
   // Data loading
   loadTodos: () => Promise<void>;
@@ -228,6 +229,30 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       input: ''
     });
     await saveTodos(sortedTodos);
+  },
+  
+  moveTodo: async (fromIndex: number, toIndex: number) => {
+    const { todos, saveTodos } = get();
+    
+    // Validate indices
+    if (fromIndex < 0 || fromIndex >= todos.length || toIndex < 0 || toIndex >= todos.length) {
+      return;
+    }
+    
+    if (fromIndex === toIndex) {
+      return;
+    }
+    
+    // Create new array with reordered todos
+    const updatedTodos = [...todos];
+    const [movedTodo] = updatedTodos.splice(fromIndex, 1);
+    updatedTodos.splice(toIndex, 0, movedTodo);
+    
+    set({ 
+      todos: updatedTodos,
+      selectedIndex: toIndex
+    });
+    await saveTodos(updatedTodos);
   },
   
   checkForUpdates: async () => {
