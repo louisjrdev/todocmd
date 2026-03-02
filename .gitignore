@@ -5,6 +5,7 @@ npm-debug.log*
 # Build outputs
 dist/
 release/
+target/
 
 # OS files
 .DS_Store
