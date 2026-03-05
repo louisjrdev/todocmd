@@ -2,6 +2,19 @@
 name = "todocmd"
 version = "2.0.0"
 edition = "2024"
+authors = ["Louis"]
+description = "Keyboard-first daily todo desktop app built with Rust and Dioxus."
+license = "MIT"
+homepage = "https://github.com/louisjrdev/todocmd"
+repository = "https://github.com/louisjrdev/todocmd"
+
+[package.metadata.bundle]
+name = "TodoCmd"
+identifier = "com.louis.todocmd"
+short_description = "Keyboard-first daily todo desktop app."
+long_description = "TodoCmd is a keyboard-first daily todo desktop app built with Rust and Dioxus."
+category = "Productivity"
+icon = ["assets/icon.png", "assets/icon.icns", "assets/icon.ico"]
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }

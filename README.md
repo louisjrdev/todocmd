@@ -27,21 +27,12 @@ cargo fmt
 cargo check
 ```
 
-## Install (Windows)
+## Install
 
-Build and install TodoCmd to your user programs folder, plus add startup on login:
+Tagged releases publish release artifacts through GitHub Actions:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-This installs to `%LOCALAPPDATA%\Programs\todocmd\todocmd.exe` and creates a Startup shortcut (`TodoCmd.lnk`) so it launches when you sign in.
-
-To uninstall:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
-```
+- macOS: `TodoCmd-macos.zip` containing `TodoCmd.app`
+- Windows: `.msi` installer plus `TodoCmd-windows.zip` for portable use
 
 ## Keyboard Shortcuts
 
