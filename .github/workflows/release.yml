@@ -67,6 +67,12 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: cargo bundle --release --format osx
 
+      - name: Ad-hoc sign macOS app
+        if: matrix.os == 'macos-latest'
+        run: |
+          codesign --force --deep --sign - target/release/bundle/osx/TodoCmd.app
+          codesign --verify --deep --strict target/release/bundle/osx/TodoCmd.app
+
       - name: Archive macOS app
         if: matrix.os == 'macos-latest'
         run: ditto -c -k --sequesterRsrc --keepParent target/release/bundle/osx/TodoCmd.app target/release/TodoCmd-macos.zip
@@ -79,7 +85,11 @@ jobs:
       - name: Build Windows installer
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: cargo wix --no-build
+        run: |
+          if (-not (Test-Path "wix/main.wxs")) {
+            cargo wix init
+          }
+          cargo wix --no-build --nocapture
 
       - name: Upload macOS artifacts
         if: matrix.os == 'macos-latest'

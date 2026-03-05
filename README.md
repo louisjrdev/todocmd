@@ -34,6 +34,8 @@ Tagged releases publish release artifacts through GitHub Actions:
 - macOS: `TodoCmd-macos.zip` containing `TodoCmd.app`
 - Windows: `.msi` installer plus `TodoCmd-windows.zip` for portable use
 
+The macOS release is currently ad-hoc signed in CI. That improves bundle integrity, but it is not notarized, so macOS may still require `Open` from the context menu or a manual override in System Settings.
+
 ## Keyboard Shortcuts
 
 - `ArrowUp` / `ArrowDown` - select todo
