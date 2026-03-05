@@ -46,6 +46,7 @@ powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ## Keyboard Shortcuts
 
 - `ArrowUp` / `ArrowDown` - select todo
+- `Ctrl+Shift+ArrowUp` / `Ctrl+Shift+ArrowDown` - reorder selected todo
 - `Alt+K` - global show/hide toggle
 - `ArrowLeft` / `ArrowRight` - previous/next day
 - `n` - new todo

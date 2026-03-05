@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const APP_NAME: &str = "TodoCmd";
-const SCHEMA_VERSION: u8 = 1;
+const SCHEMA_VERSION: u8 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -58,6 +58,8 @@ struct Todo {
     text: String,
     status: TodoStatus,
     created_at: String,
+    #[serde(default)]
+    order: i64,
     completed_at: Option<String>,
 }
 
@@ -342,15 +344,29 @@ fn App() -> Element {
                         }
                         "ArrowUp" => {
                             if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
-                                state.selected_index = state.selected_index.saturating_sub(1);
-                                should_scroll_selected_todo = true;
+                                if modifiers.ctrl() && modifiers.shift() && !modifiers.alt() && !modifiers.meta() {
+                                    if move_selected_todo(state, MoveDirection::Up) {
+                                        should_save = true;
+                                        should_scroll_selected_todo = true;
+                                    }
+                                } else {
+                                    state.selected_index = state.selected_index.saturating_sub(1);
+                                    should_scroll_selected_todo = true;
+                                }
                             }
                         }
                         "ArrowDown" => {
                             if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
-                                state.selected_index =
-                                    (state.selected_index + 1).min(state.todos.len().saturating_sub(1));
-                                should_scroll_selected_todo = true;
+                                if modifiers.ctrl() && modifiers.shift() && !modifiers.alt() && !modifiers.meta() {
+                                    if move_selected_todo(state, MoveDirection::Down) {
+                                        should_save = true;
+                                        should_scroll_selected_todo = true;
+                                    }
+                                } else {
+                                    state.selected_index =
+                                        (state.selected_index + 1).min(state.todos.len().saturating_sub(1));
+                                    should_scroll_selected_todo = true;
+                                }
                             }
                         }
                         "ArrowLeft" => {
@@ -381,11 +397,17 @@ fn App() -> Element {
                                             text: trimmed.to_string(),
                                             status: TodoStatus::Pending,
                                             created_at: date_key(state.current_date),
+                                            order: top_todo_order(&state.todos),
                                             completed_at: None,
                                         };
-                                        state.todos.insert(0, todo);
+                                        let todo_id = todo.id.clone();
+                                        state.todos.push(todo);
                                         sort_todos(&mut state.todos);
-                                        state.selected_index = 0;
+                                        state.selected_index = state
+                                            .todos
+                                            .iter()
+                                            .position(|todo| todo.id == todo_id)
+                                            .unwrap_or(0);
                                         state.write_todos_to_store();
                                         state.reset_mode();
                                         should_save = true;
@@ -680,6 +702,46 @@ fn set_selected_status(state: &mut UiState, status: TodoStatus) {
     state.clamp_selection();
 }
 
+#[derive(Clone, Copy)]
+enum MoveDirection {
+    Up,
+    Down,
+}
+
+fn move_selected_todo(state: &mut UiState, direction: MoveDirection) -> bool {
+    if state.todos.is_empty() || state.selected_index >= state.todos.len() {
+        return false;
+    }
+
+    let selected_index = state.selected_index;
+    let selected_id = state.todos[selected_index].id.clone();
+    let selected_done = is_done_status(state.todos[selected_index].status);
+    let swap_index = match direction {
+        MoveDirection::Up => (0..selected_index)
+            .rev()
+            .find(|&index| is_done_status(state.todos[index].status) == selected_done),
+        MoveDirection::Down => ((selected_index + 1)..state.todos.len())
+            .find(|&index| is_done_status(state.todos[index].status) == selected_done),
+    };
+
+    let Some(swap_index) = swap_index else {
+        return false;
+    };
+
+    let selected_order = state.todos[selected_index].order;
+    let swap_order = state.todos[swap_index].order;
+    state.todos[selected_index].order = swap_order;
+    state.todos[swap_index].order = selected_order;
+    sort_todos(&mut state.todos);
+    state.selected_index = state
+        .todos
+        .iter()
+        .position(|todo| todo.id == selected_id)
+        .unwrap_or(selected_index);
+    state.write_todos_to_store();
+    true
+}
+
 fn status_icon(status: TodoStatus) -> &'static str {
     match status {
         TodoStatus::Pending => "○",
@@ -707,12 +769,17 @@ fn primary_modifier_pressed(modifiers: Modifiers) -> bool {
     }
 }
 
+fn is_done_status(status: TodoStatus) -> bool {
+    matches!(status, TodoStatus::Completed | TodoStatus::Cancelled)
+}
+
 fn sort_todos(todos: &mut [Todo]) {
     todos.sort_by(|a, b| {
-        let a_done = matches!(a.status, TodoStatus::Completed | TodoStatus::Cancelled);
-        let b_done = matches!(b.status, TodoStatus::Completed | TodoStatus::Cancelled);
+        let a_done = is_done_status(a.status);
+        let b_done = is_done_status(b.status);
         a_done
             .cmp(&b_done)
+            .then_with(|| a.order.cmp(&b.order))
             .then_with(|| a.created_at.cmp(&b.created_at))
             .then_with(|| a.id.cmp(&b.id))
     });
@@ -742,6 +809,7 @@ fn rollover_todos_if_needed(store: &mut AppStore) {
                             text: todo.text.clone(),
                             status: todo.status,
                             created_at: today_key.clone(),
+                            order: 0,
                             completed_at: None,
                         });
                     }
@@ -750,6 +818,10 @@ fn rollover_todos_if_needed(store: &mut AppStore) {
 
             if !carry_over.is_empty() {
                 let current = store.todos.entry(today_key.clone()).or_default();
+                let next_order = next_todo_order(current);
+                for (index, todo) in carry_over.iter_mut().enumerate() {
+                    todo.order = next_order + index as i64;
+                }
                 current.extend(carry_over);
                 sort_todos(current);
             }
@@ -765,7 +837,12 @@ fn load_store() -> AppStore {
         return AppStore::default();
     };
 
-    serde_json::from_str(&raw).unwrap_or_else(|_| AppStore::default())
+    let mut store = serde_json::from_str(&raw).unwrap_or_else(|_| AppStore::default());
+    if store.schema_version < SCHEMA_VERSION {
+        normalize_store_orders(&mut store);
+    }
+    store.schema_version = SCHEMA_VERSION;
+    store
 }
 
 fn save_store(store: &AppStore) -> Result<(), String> {
@@ -804,6 +881,22 @@ fn human_date(date: NaiveDate) -> String {
         "Yesterday".to_string()
     } else {
         format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day())
+    }
+}
+
+fn next_todo_order(todos: &[Todo]) -> i64 {
+    todos.iter().map(|todo| todo.order).max().unwrap_or(-1) + 1
+}
+
+fn top_todo_order(todos: &[Todo]) -> i64 {
+    todos.iter().map(|todo| todo.order).min().unwrap_or(0) - 1
+}
+
+fn normalize_store_orders(store: &mut AppStore) {
+    for todos in store.todos.values_mut() {
+        for (index, todo) in todos.iter_mut().enumerate() {
+            todo.order = index as i64;
+        }
     }
 }
 
