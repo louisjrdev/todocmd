@@ -3708,6 +3708,7 @@ dependencies = [
  "dioxus-desktop",
  "dirs",
  "futures-timer",
+ "global-hotkey",
  "serde",
  "serde_json",
  "uuid",

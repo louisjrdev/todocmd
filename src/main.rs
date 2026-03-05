@@ -4,10 +4,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate};
-use dioxus::desktop::{Config, WindowCloseBehaviour, use_global_shortcut, use_window};
+use dioxus::desktop::{Config, WindowCloseBehaviour, use_window};
 use dioxus::prelude::ScrollBehavior;
 use dioxus::prelude::keyboard_types::Modifiers;
 use dioxus::prelude::*;
@@ -18,11 +19,12 @@ use dioxus_desktop::trayicon::menu::{Menu, MenuEvent, MenuId, MenuItem};
 use dioxus_desktop::trayicon::{TrayIcon, init_tray_icon};
 use dioxus_desktop::{use_muda_event_handler, use_tray_menu_event_handler};
 use futures_timer::Delay;
+use global_hotkey::hotkey::HotKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const APP_NAME: &str = "TodoCmd";
-const SCHEMA_VERSION: u8 = 2;
+const SCHEMA_VERSION: u8 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -66,12 +68,66 @@ struct Todo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Settings {
     enable_todo_rollover: bool,
+    #[serde(default)]
+    shortcuts: ShortcutSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ShortcutSettings {
+    global_toggle: String,
+    close_window: String,
+    move_selection_up: String,
+    move_selection_down: String,
+    move_todo_up: String,
+    move_todo_down: String,
+    previous_day: String,
+    next_day: String,
+    confirm: String,
+    toggle_selected: String,
+    new_todo: String,
+    edit_todo: String,
+    delete_todo: String,
+    jump_today: String,
+    open_preferences: String,
+    mark_important: String,
+    mark_in_progress: String,
+    mark_on_hold: String,
+    mark_completed: String,
+    mark_cancelled: String,
+}
+
+impl Default for ShortcutSettings {
+    fn default() -> Self {
+        Self {
+            global_toggle: "Alt+K".to_string(),
+            close_window: "Escape".to_string(),
+            move_selection_up: "ArrowUp".to_string(),
+            move_selection_down: "ArrowDown".to_string(),
+            move_todo_up: "CmdOrCtrl+Shift+ArrowUp".to_string(),
+            move_todo_down: "CmdOrCtrl+Shift+ArrowDown".to_string(),
+            previous_day: "ArrowLeft".to_string(),
+            next_day: "ArrowRight".to_string(),
+            confirm: "Enter".to_string(),
+            toggle_selected: "Space".to_string(),
+            new_todo: "N".to_string(),
+            edit_todo: "E".to_string(),
+            delete_todo: "Delete, Backspace, D".to_string(),
+            jump_today: "T".to_string(),
+            open_preferences: "O".to_string(),
+            mark_important: "CmdOrCtrl+I".to_string(),
+            mark_in_progress: "CmdOrCtrl+P".to_string(),
+            mark_on_hold: "CmdOrCtrl+H".to_string(),
+            mark_completed: "CmdOrCtrl+C".to_string(),
+            mark_cancelled: "CmdOrCtrl+X".to_string(),
+        }
+    }
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             enable_todo_rollover: true,
+            shortcuts: ShortcutSettings::default(),
         }
     }
 }
@@ -112,6 +168,8 @@ struct UiState {
     input: String,
     editing_id: Option<String>,
     show_preferences: bool,
+    shortcut_drafts: ShortcutSettings,
+    shortcut_error: Option<String>,
 }
 
 impl UiState {
@@ -127,7 +185,10 @@ impl UiState {
             input: String::new(),
             editing_id: None,
             show_preferences: false,
+            shortcut_drafts: ShortcutSettings::default(),
+            shortcut_error: None,
         };
+        state.shortcut_drafts = state.store.settings.shortcuts.clone();
         state.sync_todos_from_store();
         state
     }
@@ -159,6 +220,27 @@ impl UiState {
         self.input.clear();
         self.editing_id = None;
     }
+
+    fn open_preferences(&mut self) {
+        self.shortcut_drafts = self.store.settings.shortcuts.clone();
+        self.shortcut_error = None;
+        self.show_preferences = true;
+    }
+
+    fn close_preferences(&mut self) {
+        self.shortcut_error = None;
+        self.show_preferences = false;
+    }
+}
+
+#[derive(Clone)]
+struct ShortcutBinding {
+    key: String,
+    shift: bool,
+    alt: bool,
+    ctrl: bool,
+    meta: bool,
+    cmd_or_ctrl: bool,
 }
 
 #[derive(Clone)]
@@ -197,18 +279,50 @@ fn App() -> Element {
     let mut shell_element = use_signal(|| None::<Rc<MountedData>>);
     let mut todo_row_elements = use_signal(BTreeMap::<String, Rc<MountedData>>::new);
     let quit_requested = use_signal(|| false);
+    let global_shortcut_handle = use_signal(|| None::<dioxus_desktop::ShortcutHandle>);
+    let registered_global_shortcut = use_signal(String::new);
 
-    let _global_toggle_shortcut = use_global_shortcut("Alt+K", move |state| {
-        if !matches!(state, HotKeyState::Pressed) {
-            return;
-        }
+    use_effect({
+        let desktop_for_hotkey = desktop_for_hotkey.clone();
+        let mut global_shortcut_handle = global_shortcut_handle;
+        let mut registered_global_shortcut = registered_global_shortcut;
+        let app_state = app_state;
+        move || {
+            let configured = app_state
+                .read()
+                .store
+                .settings
+                .shortcuts
+                .global_toggle
+                .clone();
+            if *registered_global_shortcut.read() == configured {
+                return;
+            }
 
-        let is_visible = desktop_for_hotkey.window.is_visible();
-        if is_visible {
-            desktop_for_hotkey.window.set_visible(false);
-        } else {
-            desktop_for_hotkey.window.set_visible(true);
-            desktop_for_hotkey.window.set_focus();
+            if let Some(handle) = global_shortcut_handle.write().take() {
+                handle.remove();
+            }
+
+            if let Ok(hotkey) = HotKey::from_str(&configured) {
+                let desktop_for_callback = desktop_for_hotkey.clone();
+                if let Ok(handle) = desktop_for_hotkey.create_shortcut(hotkey, move |state| {
+                    if !matches!(state, HotKeyState::Pressed) {
+                        return;
+                    }
+
+                    let is_visible = desktop_for_callback.window.is_visible();
+                    if is_visible {
+                        desktop_for_callback.window.set_visible(false);
+                    } else {
+                        desktop_for_callback.window.set_visible(true);
+                        desktop_for_callback.window.set_focus();
+                    }
+                }) {
+                    global_shortcut_handle.set(Some(handle));
+                }
+            }
+
+            registered_global_shortcut.set(configured);
         }
     });
 
@@ -307,6 +421,7 @@ fn App() -> Element {
 
     let snapshot = app_state.read().clone();
     let date_title = human_date(snapshot.current_date);
+    let footer_hints = footer_hints(&snapshot.store.settings.shortcuts);
     let completed_count = snapshot
         .todos
         .iter()
@@ -323,206 +438,180 @@ fn App() -> Element {
             onkeydown: move |event| {
                 let key = event.key().to_string();
                 let modifiers = event.modifiers();
-                let primary_modifier = primary_modifier_pressed(modifiers);
-                let plain_shortcuts = !modifiers.alt() && !modifiers.ctrl() && !modifiers.meta();
                 let mut should_save = false;
                 let mut hide_window = false;
                 let mut should_refocus_shell = false;
                 let mut should_scroll_selected_todo = false;
 
                 app_state.with_mut(|state| {
-                    match key.as_str() {
-                        "Escape" => {
-                            if state.show_preferences {
-                                state.show_preferences = false;
-                            } else if !matches!(state.mode, InputMode::View) {
+                    let shortcuts = state.store.settings.shortcuts.clone();
+
+                    if shortcut_matches(&shortcuts.close_window, &key, modifiers) {
+                        if state.show_preferences {
+                            state.close_preferences();
+                        } else if !matches!(state.mode, InputMode::View) {
+                            state.reset_mode();
+                            should_refocus_shell = true;
+                        } else {
+                            hide_window = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.move_todo_up, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View)
+                            && !state.todos.is_empty()
+                            && move_selected_todo(state, MoveDirection::Up)
+                        {
+                            should_save = true;
+                            should_scroll_selected_todo = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.move_todo_down, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View)
+                            && !state.todos.is_empty()
+                            && move_selected_todo(state, MoveDirection::Down)
+                        {
+                            should_save = true;
+                            should_scroll_selected_todo = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.move_selection_up, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
+                            state.selected_index = state.selected_index.saturating_sub(1);
+                            should_scroll_selected_todo = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.move_selection_down, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
+                            state.selected_index =
+                                (state.selected_index + 1).min(state.todos.len().saturating_sub(1));
+                            should_scroll_selected_todo = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.previous_day, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            state.current_date = state.current_date.pred_opt().unwrap_or(state.current_date);
+                            state.sync_todos_from_store();
+                        }
+                    } else if shortcut_matches(&shortcuts.next_day, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            state.current_date = state.current_date.succ_opt().unwrap_or(state.current_date);
+                            state.sync_todos_from_store();
+                        }
+                    } else if shortcut_matches(&shortcuts.confirm, &key, modifiers) {
+                        match state.mode {
+                            InputMode::Add => {
+                                let trimmed = state.input.trim();
+                                if !trimmed.is_empty() {
+                                    let todo = Todo {
+                                        id: Uuid::new_v4().to_string(),
+                                        text: trimmed.to_string(),
+                                        status: TodoStatus::Pending,
+                                        created_at: date_key(state.current_date),
+                                        order: top_todo_order(&state.todos),
+                                        completed_at: None,
+                                    };
+                                    let todo_id = todo.id.clone();
+                                    state.todos.push(todo);
+                                    sort_todos(&mut state.todos);
+                                    state.selected_index = state
+                                        .todos
+                                        .iter()
+                                        .position(|todo| todo.id == todo_id)
+                                        .unwrap_or(0);
+                                    state.write_todos_to_store();
+                                    state.reset_mode();
+                                    should_save = true;
+                                    should_refocus_shell = true;
+                                }
+                            }
+                            InputMode::Edit => {
+                                let Some(editing_id) = state.editing_id.clone() else {
+                                    state.reset_mode();
+                                    return;
+                                };
+                                let trimmed = state.input.trim().to_string();
+
+                                if trimmed.is_empty() {
+                                    state.todos.retain(|todo| todo.id != editing_id);
+                                } else if let Some(todo) = state.todos.iter_mut().find(|todo| todo.id == editing_id) {
+                                    todo.text = trimmed;
+                                }
+
+                                sort_todos(&mut state.todos);
+                                state.write_todos_to_store();
                                 state.reset_mode();
+                                state.clamp_selection();
+                                should_save = true;
                                 should_refocus_shell = true;
-                            } else {
-                                hide_window = true;
                             }
-                        }
-                        "ArrowUp" => {
-                            if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
-                                if modifiers.ctrl() && modifiers.shift() && !modifiers.alt() && !modifiers.meta() {
-                                    if move_selected_todo(state, MoveDirection::Up) {
-                                        should_save = true;
-                                        should_scroll_selected_todo = true;
-                                    }
-                                } else {
-                                    state.selected_index = state.selected_index.saturating_sub(1);
-                                    should_scroll_selected_todo = true;
-                                }
-                            }
-                        }
-                        "ArrowDown" => {
-                            if matches!(state.mode, InputMode::View) && !state.todos.is_empty() {
-                                if modifiers.ctrl() && modifiers.shift() && !modifiers.alt() && !modifiers.meta() {
-                                    if move_selected_todo(state, MoveDirection::Down) {
-                                        should_save = true;
-                                        should_scroll_selected_todo = true;
-                                    }
-                                } else {
-                                    state.selected_index =
-                                        (state.selected_index + 1).min(state.todos.len().saturating_sub(1));
-                                    should_scroll_selected_todo = true;
-                                }
-                            }
-                        }
-                        "ArrowLeft" => {
-                            if matches!(state.mode, InputMode::View) {
-                                state.current_date = state.current_date.pred_opt().unwrap_or(state.current_date);
-                                state.sync_todos_from_store();
-                            }
-                        }
-                        "ArrowRight" => {
-                            if matches!(state.mode, InputMode::View) {
-                                state.current_date = state.current_date.succ_opt().unwrap_or(state.current_date);
-                                state.sync_todos_from_store();
-                            }
-                        }
-                        " " => {
-                            if plain_shortcuts && matches!(state.mode, InputMode::View) {
+                            InputMode::View => {
                                 toggle_selected_todo(state);
                                 should_save = true;
                             }
                         }
-                        "Enter" => {
-                            match state.mode {
-                                InputMode::Add => {
-                                    let trimmed = state.input.trim();
-                                    if !trimmed.is_empty() {
-                                        let todo = Todo {
-                                            id: Uuid::new_v4().to_string(),
-                                            text: trimmed.to_string(),
-                                            status: TodoStatus::Pending,
-                                            created_at: date_key(state.current_date),
-                                            order: top_todo_order(&state.todos),
-                                            completed_at: None,
-                                        };
-                                        let todo_id = todo.id.clone();
-                                        state.todos.push(todo);
-                                        sort_todos(&mut state.todos);
-                                        state.selected_index = state
-                                            .todos
-                                            .iter()
-                                            .position(|todo| todo.id == todo_id)
-                                            .unwrap_or(0);
-                                        state.write_todos_to_store();
-                                        state.reset_mode();
-                                        should_save = true;
-                                        should_refocus_shell = true;
-                                    }
-                                }
-                                InputMode::Edit => {
-                                    let Some(editing_id) = state.editing_id.clone() else {
-                                        state.reset_mode();
-                                        return;
-                                    };
-                                    let trimmed = state.input.trim().to_string();
-
-                                    if trimmed.is_empty() {
-                                        state.todos.retain(|todo| todo.id != editing_id);
-                                    } else if let Some(todo) = state.todos.iter_mut().find(|todo| todo.id == editing_id) {
-                                        todo.text = trimmed;
-                                    }
-
-                                    sort_todos(&mut state.todos);
-                                    state.write_todos_to_store();
-                                    state.reset_mode();
-                                    state.clamp_selection();
-                                    should_save = true;
-                                    should_refocus_shell = true;
-                                }
-                                InputMode::View => {
-                                    toggle_selected_todo(state);
-                                    should_save = true;
-                                }
+                    } else if shortcut_matches(&shortcuts.toggle_selected, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            toggle_selected_todo(state);
+                            should_save = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.new_todo, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            state.mode = InputMode::Add;
+                            state.input.clear();
+                        }
+                    } else if shortcut_matches(&shortcuts.edit_todo, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View)
+                            && !state.todos.is_empty()
+                            && state.selected_index < state.todos.len()
+                        {
+                            let todo = &state.todos[state.selected_index];
+                            state.mode = InputMode::Edit;
+                            state.input = todo.text.clone();
+                            state.editing_id = Some(todo.id.clone());
+                        }
+                    } else if shortcut_matches(&shortcuts.delete_todo, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View)
+                            && !state.todos.is_empty()
+                            && state.selected_index < state.todos.len()
+                        {
+                            state.todos.remove(state.selected_index);
+                            state.clamp_selection();
+                            state.write_todos_to_store();
+                            should_save = true;
+                        }
+                    } else if shortcut_matches(&shortcuts.jump_today, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            state.current_date = today();
+                            state.sync_todos_from_store();
+                        }
+                    } else if shortcut_matches(&shortcuts.open_preferences, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            if state.show_preferences {
+                                state.close_preferences();
+                            } else {
+                                state.open_preferences();
                             }
                         }
-                        "n" | "N" => {
-                            if plain_shortcuts && matches!(state.mode, InputMode::View) {
-                                state.mode = InputMode::Add;
-                                state.input.clear();
-                            }
+                    } else if shortcut_matches(&shortcuts.mark_important, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            set_selected_status(state, TodoStatus::Important);
+                            should_save = true;
                         }
-                        "e" | "E" => {
-                            if plain_shortcuts
-                                && matches!(state.mode, InputMode::View)
-                                && !state.todos.is_empty()
-                                && state.selected_index < state.todos.len()
-                            {
-                                let todo = &state.todos[state.selected_index];
-                                state.mode = InputMode::Edit;
-                                state.input = todo.text.clone();
-                                state.editing_id = Some(todo.id.clone());
-                            }
+                    } else if shortcut_matches(&shortcuts.mark_in_progress, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            set_selected_status(state, TodoStatus::InProgress);
+                            should_save = true;
                         }
-                        "Delete" | "Backspace" => {
-                            if matches!(state.mode, InputMode::View)
-                                && !state.todos.is_empty()
-                                && state.selected_index < state.todos.len()
-                            {
-                                state.todos.remove(state.selected_index);
-                                state.clamp_selection();
-                                state.write_todos_to_store();
-                                should_save = true;
-                            }
+                    } else if shortcut_matches(&shortcuts.mark_on_hold, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            set_selected_status(state, TodoStatus::OnHold);
+                            should_save = true;
                         }
-                        "d" | "D" => {
-                            if plain_shortcuts
-                                && matches!(state.mode, InputMode::View)
-                                && !state.todos.is_empty()
-                                && state.selected_index < state.todos.len()
-                            {
-                                state.todos.remove(state.selected_index);
-                                state.clamp_selection();
-                                state.write_todos_to_store();
-                                should_save = true;
-                            }
+                    } else if shortcut_matches(&shortcuts.mark_completed, &key, modifiers) {
+                        if matches!(state.mode, InputMode::View) {
+                            set_selected_status(state, TodoStatus::Completed);
+                            should_save = true;
                         }
-                        "t" | "T" => {
-                            if plain_shortcuts && matches!(state.mode, InputMode::View) {
-                                state.current_date = today();
-                                state.sync_todos_from_store();
-                            }
-                        }
-                        "o" | "O" => {
-                            if plain_shortcuts && matches!(state.mode, InputMode::View) {
-                                state.show_preferences = !state.show_preferences;
-                            }
-                        }
-                        "i" | "I" => {
-                            if primary_modifier && matches!(state.mode, InputMode::View) {
-                                set_selected_status(state, TodoStatus::Important);
-                                should_save = true;
-                            }
-                        }
-                        "p" | "P" => {
-                            if primary_modifier && matches!(state.mode, InputMode::View) {
-                                set_selected_status(state, TodoStatus::InProgress);
-                                should_save = true;
-                            }
-                        }
-                        "h" | "H" => {
-                            if primary_modifier && matches!(state.mode, InputMode::View) {
-                                set_selected_status(state, TodoStatus::OnHold);
-                                should_save = true;
-                            }
-                        }
-                        "c" | "C" => {
-                            if primary_modifier && matches!(state.mode, InputMode::View) {
-                                set_selected_status(state, TodoStatus::Completed);
-                                should_save = true;
-                            }
-                        }
-                        "x" | "X" => {
-                            if primary_modifier && matches!(state.mode, InputMode::View) {
-                                set_selected_status(state, TodoStatus::Cancelled);
-                                should_save = true;
-                            }
-                        }
-                        _ => {}
+                    } else if shortcut_matches(&shortcuts.mark_cancelled, &key, modifiers)
+                        && matches!(state.mode, InputMode::View)
+                    {
+                        set_selected_status(state, TodoStatus::Cancelled);
+                        should_save = true;
                     }
                 });
 
@@ -619,7 +708,14 @@ fn App() -> Element {
 
                 div {
                     class: "footer",
-                    div { class: "hint", "n new  e edit  d delete  space toggle  t today  o settings" }
+                    div { class: "hint-list",
+                        for (label, shortcut) in footer_hints {
+                            div { class: "hint-chip",
+                                span { class: "hint-key", "{shortcut}" }
+                                span { class: "hint-label", "{label}" }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -628,7 +724,7 @@ fn App() -> Element {
                     class: "overlay",
                     onclick: move |_| {
                         app_state.with_mut(|state| {
-                            state.show_preferences = false;
+                            state.close_preferences();
                         });
                     },
 
@@ -636,21 +732,288 @@ fn App() -> Element {
                         class: "modal",
                         onclick: move |event| event.stop_propagation(),
                         h2 { "Preferences" }
-                        label {
-                            class: "toggle-row",
-                            input {
-                                r#type: "checkbox",
-                                checked: snapshot.store.settings.enable_todo_rollover,
-                                onchange: move |event| {
-                                    let checked = event.checked();
+                        div { class: "preferences-section",
+                            h3 { "Behavior" }
+                            label {
+                                class: "toggle-row",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: snapshot.store.settings.enable_todo_rollover,
+                                    onchange: move |event| {
+                                        let checked = event.checked();
+                                        app_state.with_mut(|state| {
+                                            state.store.settings.enable_todo_rollover = checked;
+                                        });
+                                        let snapshot = app_state.read().store.clone();
+                                        let _ = save_store(&snapshot);
+                                    }
+                                }
+                                span { "Enable daily rollover for incomplete todos" }
+                            }
+                        }
+                        div { class: "preferences-section",
+                            h3 { "Shortcuts" }
+                            p { class: "modal-note", "Use `+` between modifiers and keys, and commas for alternates. Example: `Delete, Backspace, D` or `CmdOrCtrl+Shift+ArrowUp`." }
+                            ShortcutField {
+                                label: "Global Toggle".to_string(),
+                                hint: "System-wide show/hide shortcut.".to_string(),
+                                value: snapshot.shortcut_drafts.global_toggle.clone(),
+                                oninput: move |event: FormEvent| {
                                     app_state.with_mut(|state| {
-                                        state.store.settings.enable_todo_rollover = checked;
+                                        state.shortcut_drafts.global_toggle = event.value();
+                                        state.shortcut_error = None;
                                     });
-                                    let snapshot = app_state.read().store.clone();
-                                    let _ = save_store(&snapshot);
                                 }
                             }
-                            span { "Enable daily rollover for incomplete todos" }
+                            ShortcutField {
+                                label: "Close Or Hide".to_string(),
+                                hint: "Hide the window or close Preferences.".to_string(),
+                                value: snapshot.shortcut_drafts.close_window.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.close_window = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Select Previous Todo".to_string(),
+                                hint: "Move the selection up.".to_string(),
+                                value: snapshot.shortcut_drafts.move_selection_up.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.move_selection_up = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Select Next Todo".to_string(),
+                                hint: "Move the selection down.".to_string(),
+                                value: snapshot.shortcut_drafts.move_selection_down.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.move_selection_down = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Move Todo Up".to_string(),
+                                hint: "Reorder the selected todo upward.".to_string(),
+                                value: snapshot.shortcut_drafts.move_todo_up.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.move_todo_up = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Move Todo Down".to_string(),
+                                hint: "Reorder the selected todo downward.".to_string(),
+                                value: snapshot.shortcut_drafts.move_todo_down.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.move_todo_down = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Previous Day".to_string(),
+                                hint: "Jump to the previous day.".to_string(),
+                                value: snapshot.shortcut_drafts.previous_day.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.previous_day = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Next Day".to_string(),
+                                hint: "Jump to the next day.".to_string(),
+                                value: snapshot.shortcut_drafts.next_day.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.next_day = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Confirm".to_string(),
+                                hint: "Submit add/edit or toggle in view mode.".to_string(),
+                                value: snapshot.shortcut_drafts.confirm.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.confirm = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Toggle Selected".to_string(),
+                                hint: "Toggle the selected todo state in view mode.".to_string(),
+                                value: snapshot.shortcut_drafts.toggle_selected.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.toggle_selected = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "New Todo".to_string(),
+                                hint: "Enter add mode.".to_string(),
+                                value: snapshot.shortcut_drafts.new_todo.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.new_todo = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Edit Todo".to_string(),
+                                hint: "Edit the selected todo.".to_string(),
+                                value: snapshot.shortcut_drafts.edit_todo.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.edit_todo = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Delete Todo".to_string(),
+                                hint: "Delete the selected todo.".to_string(),
+                                value: snapshot.shortcut_drafts.delete_todo.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.delete_todo = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Jump To Today".to_string(),
+                                hint: "Return to today.".to_string(),
+                                value: snapshot.shortcut_drafts.jump_today.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.jump_today = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Open Preferences".to_string(),
+                                hint: "Open or close this modal.".to_string(),
+                                value: snapshot.shortcut_drafts.open_preferences.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.open_preferences = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Mark Important".to_string(),
+                                hint: "Toggle important status.".to_string(),
+                                value: snapshot.shortcut_drafts.mark_important.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.mark_important = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Mark In Progress".to_string(),
+                                hint: "Toggle in-progress status.".to_string(),
+                                value: snapshot.shortcut_drafts.mark_in_progress.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.mark_in_progress = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Mark On Hold".to_string(),
+                                hint: "Toggle on-hold status.".to_string(),
+                                value: snapshot.shortcut_drafts.mark_on_hold.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.mark_on_hold = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Mark Completed".to_string(),
+                                hint: "Toggle completed status.".to_string(),
+                                value: snapshot.shortcut_drafts.mark_completed.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.mark_completed = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            ShortcutField {
+                                label: "Mark Cancelled".to_string(),
+                                hint: "Toggle cancelled status.".to_string(),
+                                value: snapshot.shortcut_drafts.mark_cancelled.clone(),
+                                oninput: move |event: FormEvent| {
+                                    app_state.with_mut(|state| {
+                                        state.shortcut_drafts.mark_cancelled = event.value();
+                                        state.shortcut_error = None;
+                                    });
+                                }
+                            }
+                            if let Some(error) = snapshot.shortcut_error.clone() {
+                                p { class: "shortcut-error", "{error}" }
+                            }
+                            div { class: "shortcut-actions",
+                                button {
+                                    class: "secondary-button",
+                                    onclick: move |_| {
+                                        app_state.with_mut(|state| {
+                                            state.shortcut_drafts = ShortcutSettings::default();
+                                            state.shortcut_error = None;
+                                        });
+                                    },
+                                    "Restore Defaults"
+                                }
+                                button {
+                                    class: "primary-button",
+                                    onclick: move |_| {
+                                        let drafts = app_state.read().shortcut_drafts.clone();
+                                        match normalize_shortcut_settings(&drafts)
+                                            .and_then(|normalized| validate_global_shortcut(&normalized.global_toggle).map(|_| normalized))
+                                        {
+                                            Ok(normalized) => {
+                                                app_state.with_mut(|state| {
+                                                    state.store.settings.shortcuts = normalized.clone();
+                                                    state.shortcut_drafts = normalized;
+                                                    state.shortcut_error = None;
+                                                });
+                                                let snapshot = app_state.read().store.clone();
+                                                let _ = save_store(&snapshot);
+                                            }
+                                            Err(error) => {
+                                                app_state.with_mut(|state| {
+                                                    state.shortcut_error = Some(error);
+                                                });
+                                            }
+                                        }
+                                    },
+                                    "Save Shortcuts"
+                                }
+                            }
                         }
                         p { class: "modal-note", "Esc closes this window. Data stays local on this machine." }
                     }
@@ -658,6 +1021,47 @@ fn App() -> Element {
             }
         }
     }
+}
+
+#[component]
+fn ShortcutField(
+    label: String,
+    hint: String,
+    value: String,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    rsx! {
+        label { class: "shortcut-row",
+            span { class: "shortcut-label", "{label}" }
+            span { class: "shortcut-hint", "{hint}" }
+            input {
+                class: "shortcut-input",
+                value: "{value}",
+                onkeydown: move |event| event.stop_propagation(),
+                oninput: move |event| oninput.call(event),
+            }
+        }
+    }
+}
+
+fn footer_hints(shortcuts: &ShortcutSettings) -> Vec<(&'static str, String)> {
+    vec![
+        ("new", footer_shortcut(&shortcuts.new_todo)),
+        ("edit", footer_shortcut(&shortcuts.edit_todo)),
+        ("delete", footer_shortcut(&shortcuts.delete_todo)),
+        ("toggle", footer_shortcut(&shortcuts.toggle_selected)),
+        ("settings", footer_shortcut(&shortcuts.open_preferences)),
+    ]
+}
+
+fn footer_shortcut(shortcuts: &str) -> String {
+    shortcuts
+        .split(',')
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(shortcuts)
+        .to_string()
 }
 
 fn toggle_selected_todo(state: &mut UiState) {
@@ -757,16 +1161,191 @@ fn selected_class(is_selected: bool) -> &'static str {
     if is_selected { "selected" } else { "" }
 }
 
-fn primary_modifier_pressed(modifiers: Modifiers) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        modifiers.meta()
+fn shortcut_matches(shortcuts: &str, key: &str, modifiers: Modifiers) -> bool {
+    parse_shortcut_list(shortcuts)
+        .map(|bindings| {
+            bindings
+                .iter()
+                .any(|binding| shortcut_binding_matches(binding, key, modifiers))
+        })
+        .unwrap_or(false)
+}
+
+fn shortcut_binding_matches(binding: &ShortcutBinding, key: &str, modifiers: Modifiers) -> bool {
+    let key = canonicalize_event_key(key);
+    let expected_ctrl = binding.ctrl || (binding.cmd_or_ctrl && !cfg!(target_os = "macos"));
+    let expected_meta = binding.meta || (binding.cmd_or_ctrl && cfg!(target_os = "macos"));
+
+    key == binding.key
+        && modifiers.shift() == binding.shift
+        && modifiers.alt() == binding.alt
+        && modifiers.ctrl() == expected_ctrl
+        && modifiers.meta() == expected_meta
+}
+
+fn parse_shortcut_list(raw: &str) -> Result<Vec<ShortcutBinding>, String> {
+    let bindings = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(parse_shortcut_binding)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if bindings.is_empty() {
+        return Err("Shortcut cannot be empty.".to_string());
     }
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        modifiers.ctrl()
+    Ok(bindings)
+}
+
+fn parse_shortcut_binding(raw: &str) -> Result<ShortcutBinding, String> {
+    let tokens = raw
+        .split('+')
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>();
+
+    if tokens.is_empty() {
+        return Err("Shortcut cannot be empty.".to_string());
     }
+
+    let mut shift = false;
+    let mut alt = false;
+    let mut ctrl = false;
+    let mut meta = false;
+    let mut cmd_or_ctrl = false;
+
+    for token in &tokens[..tokens.len().saturating_sub(1)] {
+        match token.to_ascii_uppercase().as_str() {
+            "SHIFT" => shift = true,
+            "ALT" | "OPTION" => alt = true,
+            "CTRL" | "CONTROL" => ctrl = true,
+            "CMD" | "COMMAND" | "SUPER" | "META" => meta = true,
+            "PRIMARY" | "CMDORCTRL" | "CMDORCONTROL" | "COMMANDORCTRL" | "COMMANDORCONTROL" => {
+                cmd_or_ctrl = true
+            }
+            _ => return Err(format!("Unsupported modifier `{token}` in `{raw}`.")),
+        }
+    }
+
+    let key = canonicalize_shortcut_key(tokens[tokens.len() - 1])
+        .ok_or_else(|| format!("Unsupported key `{}` in `{raw}`.", tokens[tokens.len() - 1]))?;
+
+    Ok(ShortcutBinding {
+        key,
+        shift,
+        alt,
+        ctrl,
+        meta,
+        cmd_or_ctrl,
+    })
+}
+
+fn canonicalize_shortcut_key(raw: &str) -> Option<String> {
+    let upper = raw.trim().to_ascii_uppercase();
+    let key = match upper.as_str() {
+        "SPACE" | "SPACEBAR" => "Space".to_string(),
+        "ENTER" | "RETURN" => "Enter".to_string(),
+        "ESC" | "ESCAPE" => "Escape".to_string(),
+        "DELETE" | "DEL" => "Delete".to_string(),
+        "BACKSPACE" => "Backspace".to_string(),
+        "ARROWUP" | "UP" => "ArrowUp".to_string(),
+        "ARROWDOWN" | "DOWN" => "ArrowDown".to_string(),
+        "ARROWLEFT" | "LEFT" => "ArrowLeft".to_string(),
+        "ARROWRIGHT" | "RIGHT" => "ArrowRight".to_string(),
+        _ if raw.chars().count() == 1 => raw.to_ascii_uppercase(),
+        _ => return None,
+    };
+
+    Some(key)
+}
+
+fn canonicalize_event_key(raw: &str) -> String {
+    match raw {
+        " " => "Space".to_string(),
+        "Enter" => "Enter".to_string(),
+        "Escape" => "Escape".to_string(),
+        "Delete" => "Delete".to_string(),
+        "Backspace" => "Backspace".to_string(),
+        "ArrowUp" => "ArrowUp".to_string(),
+        "ArrowDown" => "ArrowDown".to_string(),
+        "ArrowLeft" => "ArrowLeft".to_string(),
+        "ArrowRight" => "ArrowRight".to_string(),
+        _ if raw.chars().count() == 1 => raw.to_ascii_uppercase(),
+        _ => raw.to_string(),
+    }
+}
+
+fn format_shortcut_binding(binding: &ShortcutBinding) -> String {
+    let mut parts = vec![];
+    if binding.cmd_or_ctrl {
+        parts.push("CmdOrCtrl".to_string());
+    }
+    if binding.ctrl {
+        parts.push("Ctrl".to_string());
+    }
+    if binding.meta {
+        parts.push("Cmd".to_string());
+    }
+    if binding.alt {
+        parts.push("Alt".to_string());
+    }
+    if binding.shift {
+        parts.push("Shift".to_string());
+    }
+    parts.push(binding.key.clone());
+    parts.join("+")
+}
+
+fn normalize_shortcut_list(label: &str, raw: &str) -> Result<String, String> {
+    let bindings = parse_shortcut_list(raw).map_err(|error| format!("{label}: {error}"))?;
+    Ok(bindings
+        .iter()
+        .map(format_shortcut_binding)
+        .collect::<Vec<_>>()
+        .join(", "))
+}
+
+fn normalize_shortcut_settings(settings: &ShortcutSettings) -> Result<ShortcutSettings, String> {
+    Ok(ShortcutSettings {
+        global_toggle: normalize_shortcut_list("Global toggle", &settings.global_toggle)?,
+        close_window: normalize_shortcut_list("Close or hide", &settings.close_window)?,
+        move_selection_up: normalize_shortcut_list(
+            "Select previous todo",
+            &settings.move_selection_up,
+        )?,
+        move_selection_down: normalize_shortcut_list(
+            "Select next todo",
+            &settings.move_selection_down,
+        )?,
+        move_todo_up: normalize_shortcut_list("Move todo up", &settings.move_todo_up)?,
+        move_todo_down: normalize_shortcut_list("Move todo down", &settings.move_todo_down)?,
+        previous_day: normalize_shortcut_list("Previous day", &settings.previous_day)?,
+        next_day: normalize_shortcut_list("Next day", &settings.next_day)?,
+        confirm: normalize_shortcut_list("Confirm", &settings.confirm)?,
+        toggle_selected: normalize_shortcut_list("Toggle selected", &settings.toggle_selected)?,
+        new_todo: normalize_shortcut_list("New todo", &settings.new_todo)?,
+        edit_todo: normalize_shortcut_list("Edit todo", &settings.edit_todo)?,
+        delete_todo: normalize_shortcut_list("Delete todo", &settings.delete_todo)?,
+        jump_today: normalize_shortcut_list("Jump to today", &settings.jump_today)?,
+        open_preferences: normalize_shortcut_list("Open preferences", &settings.open_preferences)?,
+        mark_important: normalize_shortcut_list("Mark important", &settings.mark_important)?,
+        mark_in_progress: normalize_shortcut_list("Mark in progress", &settings.mark_in_progress)?,
+        mark_on_hold: normalize_shortcut_list("Mark on hold", &settings.mark_on_hold)?,
+        mark_completed: normalize_shortcut_list("Mark completed", &settings.mark_completed)?,
+        mark_cancelled: normalize_shortcut_list("Mark cancelled", &settings.mark_cancelled)?,
+    })
+}
+
+fn validate_global_shortcut(shortcut: &str) -> Result<(), String> {
+    let bindings = parse_shortcut_list(shortcut)?;
+    if bindings.len() != 1 {
+        return Err("Global toggle must use exactly one shortcut.".to_string());
+    }
+
+    HotKey::from_str(shortcut)
+        .map(|_| ())
+        .map_err(|error| format!("Global toggle: {error}"))
 }
 
 fn is_done_status(status: TodoStatus) -> bool {
@@ -945,10 +1524,7 @@ html, body {
     height: 100vh;
     display: grid;
     place-items: center;
-    background:
-        radial-gradient(135% 95% at 12% 8%, rgba(137, 180, 250, 0.24), transparent 58%),
-        radial-gradient(110% 120% at 92% 100%, rgba(148, 226, 213, 0.22), transparent 62%),
-        linear-gradient(160deg, var(--ctp-base) 0%, var(--ctp-mantle) 44%, var(--ctp-crust) 100%);
+    background: transparent;
     outline: none;
 }
 
@@ -957,7 +1533,7 @@ html, body {
     height: min(520px, calc(100vh - 20px));
     border-radius: 16px;
     border: 1px solid rgba(116, 199, 236, 0.3);
-    background: linear-gradient(180deg, rgba(30, 30, 46, 0.94), rgba(24, 24, 37, 0.97));
+    background: linear-gradient(160deg, var(--ctp-base) 0%, var(--ctp-mantle) 46%, var(--ctp-crust) 100%);
     box-shadow: 0 22px 48px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(12px);
     display: flex;
@@ -1079,10 +1655,33 @@ html, body {
     padding: 11px 18px 14px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
 }
 
-.hint {
+.hint-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+}
+
+.hint-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(49, 50, 68, 0.88);
+    border: 1px solid rgba(88, 91, 112, 0.55);
+}
+
+.hint-key {
+    color: var(--ctp-text);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.hint-label {
     color: var(--ctp-subtext1);
     font-size: 12px;
 }
@@ -1096,18 +1695,33 @@ html, body {
 }
 
 .modal {
-    width: min(430px, calc(100vw - 26px));
+    width: min(560px, calc(100vw - 26px));
+    max-height: min(82vh, 760px);
     border-radius: 12px;
     border: 1px solid rgba(116, 199, 236, 0.34);
     background: rgba(30, 30, 46, 0.97);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
     padding: 16px;
+    overflow-y: auto;
 }
 
 .modal h2 {
     margin: 0 0 12px;
     font-size: 18px;
     color: var(--ctp-text);
+}
+
+.modal h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: var(--ctp-text);
+}
+
+.preferences-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
 }
 
 .toggle-row {
@@ -1124,6 +1738,70 @@ html, body {
     color: var(--ctp-overlay2);
 }
 
+.shortcut-row {
+    display: grid;
+    gap: 6px;
+}
+
+.shortcut-label {
+    color: var(--ctp-text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.shortcut-hint {
+    color: var(--ctp-overlay2);
+    font-size: 12px;
+}
+
+.shortcut-input {
+    border: 1px solid rgba(88, 91, 112, 0.85);
+    background: rgba(24, 24, 37, 0.9);
+    border-radius: 9px;
+    color: var(--ctp-text);
+    padding: 9px 11px;
+    font-size: 14px;
+    outline: none;
+}
+
+.shortcut-input:focus {
+    border-color: rgba(137, 180, 250, 0.92);
+    box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.18);
+}
+
+.shortcut-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.primary-button,
+.secondary-button {
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.primary-button {
+    border: 1px solid rgba(137, 180, 250, 0.85);
+    background: rgba(137, 180, 250, 0.16);
+    color: var(--ctp-text);
+}
+
+.secondary-button {
+    border: 1px solid rgba(88, 91, 112, 0.8);
+    background: rgba(49, 50, 68, 0.9);
+    color: var(--ctp-subtext1);
+}
+
+.shortcut-error {
+    margin: 0;
+    color: var(--ctp-red);
+    font-size: 13px;
+}
+
 @keyframes rise {
     from { transform: translateY(8px) scale(0.99); opacity: 0; }
     to { transform: translateY(0) scale(1); opacity: 1; }
@@ -1136,7 +1814,17 @@ html, body {
         border-radius: 12px;
     }
 
-    .hint {
+    .hint-list {
+        gap: 7px;
+    }
+
+    .hint-chip {
+        gap: 7px;
+        padding: 4px 8px;
+    }
+
+    .hint-key,
+    .hint-label {
         font-size: 11px;
     }
 }
